@@ -127,7 +127,9 @@ const adminToken = (() => {
 const CODE_VERSION = (() => {
   try {
     const t = fs.statSync(path.join(SERVICE_DIR, 'src/server.js')).mtime;
-    return t.toISOString().slice(0, 16).replace('T', ' ');
+    // 用本地时间：toISOString() 是 UTC，界面上会看成「服务还没重启」
+    const z = (n) => String(n).padStart(2, '0');
+    return `${t.getFullYear()}-${z(t.getMonth() + 1)}-${z(t.getDate())} ${z(t.getHours())}:${z(t.getMinutes())}`;
   } catch {
     return '';
   }
