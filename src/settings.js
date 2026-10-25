@@ -33,6 +33,9 @@ export function writeSettings(patch) {
   for (const group of ['chat', 'review', 'ocr']) {
     for (const [k, v] of Object.entries(patch?.[group] || {})) {
       if (v === '' || v == null) continue;
+      // 界面上回显的是 ••••1234 这种掩码，原样提交回来时必须忽略，
+      // 否则会把真实 key 覆盖成掩码字符串。
+      if (/^[•*]+/.test(String(v))) continue;
       cur[group][k] = String(v);
     }
   }

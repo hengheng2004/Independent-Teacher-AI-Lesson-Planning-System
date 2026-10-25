@@ -1372,6 +1372,12 @@ async function renderQA() {
 
 /* ---------------- 设置 ---------------- */
 
+// 掩码值（••••1234）不要提交回服务端，否则会覆盖真 key
+function maskGuard(v) {
+  const t = String(v || '').trim();
+  return /^[•*]+/.test(t) ? '' : t;
+}
+
 async function renderSettings() {
   const m = $('#main');
   m.innerHTML = '';
@@ -1418,6 +1424,66 @@ async function renderSettings() {
     el('p', 'muted small', '留空表示不修改。key 明文存本机 data/settings.json，不要把这个文件发给别人。'),
   );
 
+  // API Key 专用：默认掩码显示，粘贴后自动隐藏，可点眼睛临时查看
+  const keyField = (parent, label, id, value, placeholder) => {
+    const row = el('div', 'row');
+    row.style.marginBottom = '8px';
+    const lab = el('label', 'muted small');
+    lab.style.minWidth = '96px';
+    lab.textContent = label;
+    const input = el('input');
+    input.id = id;
+    input.type = 'password';
+    input.value = value || '';
+    input.placeholder = placeholder || '';
+    input.style.flex = '1';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+
+    const eye = el('button', 'small', '显示');
+    eye.type = 'button';
+    eye.style.minWidth = '52px';
+    eye.onclick = () => {
+      if (input.type === 'password') {
+        input.type = 'text';
+        eye.textContent = '隐藏';
+      } else {
+        input.type = 'password';
+        eye.textContent = '显示';
+      }
+    };
+
+    // 粘贴后立刻隐藏，并提示末四位，让人确认贴对了又看不到全串
+    input.addEventListener('paste', () => {
+      setTimeout(() => {
+        input.type = 'password';
+        eye.textContent = '显示';
+        const v = input.value.trim();
+        const hint = input.parentElement?.nextElementSibling;
+        if (hint && hint.dataset.hintFor === id) {
+          hint.textContent = v && !/^[•*]/.test(v) ? `已粘贴，末四位 ${v.slice(-4)}（已隐藏）` : '';
+        }
+      }, 0);
+    });
+    // 失焦即隐藏，避免别人看屏幕
+    input.addEventListener('blur', () => {
+      input.type = 'password';
+      eye.textContent = '显示';
+    });
+
+    row.appendChild(lab);
+    row.appendChild(input);
+    row.appendChild(eye);
+    parent.appendChild(row);
+
+    const hint = el('div', 'muted small');
+    hint.dataset.hintFor = id;
+    hint.style.cssText = 'margin:-4px 0 8px 96px';
+    hint.textContent = input.value && /^[•*]/.test(input.value) ? '已保存（只显示末四位）；要更换就重新粘贴' : '';
+    parent.appendChild(hint);
+    return input;
+  };
+
   const field = (parent, label, id, value, placeholder, type = 'text') => {
     const row = el('div', 'row');
     row.style.marginBottom = '8px';
@@ -1440,7 +1506,7 @@ async function renderSettings() {
   field(form, '厂商', 'set-chat-provider', st.chat.provider, 'deepseek 或 openai');
   field(form, 'Base URL', 'set-chat-base', st.chat.baseUrl, '留空=按厂商默认；其它厂商填兼容端点');
   field(form, '模型名', 'set-chat-model', st.chat.model, 'deepseek-chat / gpt-4o-mini …');
-  field(form, 'API Key', 'set-chat-key', st.chat.apiKey, st.chat.apiKey ? '已设置，留空不改' : 'sk-…', 'password');
+  keyField(form, 'API Key', 'set-chat-key', st.chat.apiKey, st.chat.apiKey ? '已设置，留空不改' : 'sk-…');
 
   form.appendChild(el('h3', '', '审查 agent'));
   field(form, '模型名', 'set-review-model', st.review.model, `留空=跟随聊天模型（${data.effective.reviewModel || state.model || '当前模型'}）`);
@@ -1448,7 +1514,7 @@ async function renderSettings() {
   form.appendChild(el('h3', '', 'OCR 视觉模型'));
   field(form, 'Base URL', 'set-ocr-base', st.ocr.baseUrl, 'https://dashscope.aliyuncs.com/compatible-mode/v1');
   field(form, '模型名', 'set-ocr-model', st.ocr.model, 'qwen-vl-max');
-  field(form, 'API Key', 'set-ocr-key', st.ocr.apiKey, st.ocr.apiKey ? '已设置，留空不改' : 'sk-…', 'password');
+  keyField(form, 'API Key', 'set-ocr-key', st.ocr.apiKey, st.ocr.apiKey ? '已设置，留空不改' : 'sk-…');
 
   const saveRow = el('div', 'row');
   saveRow.style.marginTop = '12px';
@@ -1462,13 +1528,13 @@ async function renderSettings() {
           provider: $('#set-chat-provider').value.trim(),
           baseUrl: $('#set-chat-base').value.trim(),
           model: $('#set-chat-model').value.trim(),
-          apiKey: $('#set-chat-key').value.trim(),
+          apiKey: maskGuard($('#set-chat-key').value),
         },
         review: { model: $('#set-review-model').value.trim() },
         ocr: {
           baseUrl: $('#set-ocr-base').value.trim(),
           model: $('#set-ocr-model').value.trim(),
-          apiKey: $('#set-ocr-key').value.trim(),
+          apiKey: maskGuard($('#set-ocr-key').value),
         },
       };
       const r = await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify(payload) });
