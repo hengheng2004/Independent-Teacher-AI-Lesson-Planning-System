@@ -129,6 +129,19 @@ async function main() {
   }
   log(`依赖（已裁剪 ${saved} 个目录）${await size(nm)}`);
 
+  // 3.5) 预编译本机 OCR 二进制：买家不装 Xcode 命令行工具也能用 macOS Vision
+  if (TARGET === 'darwin') {
+    const swiftSrc = path.join(APP, 'scripts/ocr/ocr.swift');
+    fs.mkdirSync(path.join(APP, 'data/bin'), { recursive: true });
+    await new Promise((resolve) => {
+      const p2 = spawn('swiftc', ['-O', swiftSrc, '-o', path.join(APP, 'data/bin/ocr')], { stdio: 'inherit' });
+      p2.on('exit', (c) => {
+        log(c === 0 ? '本机 OCR 二进制已预编译' : '跳过预编译（本机没有 swiftc）');
+        resolve();
+      });
+    });
+  }
+
   // 4) 向量模型 + 示例课程 + 配置模板
   copy(path.join(ROOT, 'data/models'), path.join(APP, 'data/models'));
   log(`向量模型 ${await size(path.join(APP, 'data/models'))}`);

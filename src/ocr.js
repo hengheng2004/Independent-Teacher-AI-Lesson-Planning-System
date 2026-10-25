@@ -56,7 +56,11 @@ async function pdfPages(pdf) {
 }
 
 function compile(src, bin) {
-  if (fs.existsSync(bin) && fs.statSync(bin).mtimeMs > fs.statSync(src).mtimeMs) return Promise.resolve();
+  // 预编译二进制（打包时生成）优先：只要它存在且不比源码旧，就不需要 swiftc
+  if (fs.existsSync(bin)) {
+    const srcOk = fs.existsSync(src);
+    if (!srcOk || fs.statSync(bin).mtimeMs >= fs.statSync(src).mtimeMs) return Promise.resolve();
+  }
   fs.mkdirSync(path.dirname(bin), { recursive: true });
   return new Promise((resolve, reject) => {
     const p = spawn('swiftc', ['-O', src, '-o', bin], { stdio: 'inherit' });
@@ -67,8 +71,12 @@ function compile(src, bin) {
 /* ---------------- local：本机 OCR ---------------- */
 
 async function localAvailable() {
-  // macOS 走系统 Vision，但需要 swiftc 现编一个小工具；没装 Xcode 命令行工具就用不了
-  if (process.platform === 'darwin') return has('swiftc');
+  // macOS：优先用随包附带的预编译二进制；没有才尝试用 swiftc 现编。
+  // 这样买家不装 Xcode 命令行工具也能用本机 OCR。
+  if (process.platform === 'darwin') {
+    if (fs.existsSync(OCR_BIN)) return true;
+    return has('swiftc');
+  }
   return has('tesseract');
 }
 
