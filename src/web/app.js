@@ -1372,6 +1372,9 @@ async function renderQA() {
 
 /* ---------------- 设置 ---------------- */
 
+// 保存成功后的提示：要用模块级变量，否则 renderSettings() 重绘会把它冲掉
+let settingsFlash = '';
+
 // 掩码值（••••1234）不要提交回服务端，否则会覆盖真 key
 function maskGuard(v) {
   const t = String(v || '').trim();
@@ -1382,6 +1385,13 @@ async function renderSettings() {
   const m = $('#main');
   m.innerHTML = '';
   m.appendChild(el('h1', '', '设置'));
+
+  if (settingsFlash) {
+    const ok = el('div', 'notice good');
+    ok.textContent = settingsFlash;
+    m.appendChild(ok);
+    settingsFlash = '';
+  }
 
   let data;
   try {
@@ -1577,15 +1587,48 @@ async function renderSettings() {
         },
       };
       const r = await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify(payload) });
-      msg.textContent = `已保存，聊天模型现在是 ${r.effective.chatProvider} · ${r.effective.chatModel}`;
+      const now = await api('/api/teacher/state');
+      state.ocr = now.ocr;
+      const ocrLabel =
+        { local: '本机 OCR', vision: '视觉模型', command: '自定义命令', none: '不可用' }[now.ocr.chosen] || now.ocr.chosen;
+      const detail = [r.effective.chatProvider ? `聊天 ${r.effective.chatProvider}·${r.effective.chatModel}` : '', `OCR ${ocrLabel}`]
+        .filter(Boolean)
+        .join('；');
+      settingsFlash = `已保存并生效：${detail}`;
+      toast(`✅ 已保存并生效：${detail}`, 4000);
       await refreshState();
       renderSettings();
     } catch (e) {
       msg.textContent = '保存失败：' + e.message;
+      toast('❌ 保存失败：' + e.message, 5000);
       save.disabled = false;
     }
   };
+  const testBtn = el('button', '', '测试 OCR');
+  testBtn.type = 'button';
+  testBtn.onclick = async () => {
+    testBtn.disabled = true;
+    const old = testBtn.textContent;
+    testBtn.textContent = '测试中…';
+    try {
+      const r = await api('/api/teacher/ocr/test', { method: 'POST', body: JSON.stringify({}) });
+      if (r.ok) {
+        settingsFlash = `视觉模型可用：${r.model || ''}（${r.ms}ms）读出「${r.sample || '（空）'}」`;
+        toast(`✅ 视觉模型可用（${r.ms}ms）`, 4000);
+      } else {
+        settingsFlash = `视觉模型不可用：${r.error}`;
+        toast('❌ ' + r.error, 6000);
+      }
+      renderSettings();
+    } catch (e) {
+      toast('❌ 测试失败：' + e.message, 5000);
+      testBtn.disabled = false;
+      testBtn.textContent = old;
+    }
+  };
+
   saveRow.appendChild(save);
+  saveRow.appendChild(testBtn);
   saveRow.appendChild(msg);
   form.appendChild(saveRow);
   m.appendChild(form);

@@ -214,6 +214,47 @@ export async function resolveBackend(llm) {
   return null;
 }
 
+/**
+ * 冒烟测试：生成一张带文字的小图，让视觉模型读一遍。
+ * 用于在 OCR 整本之前确认「端点、key、模型名」三者都对。
+ */
+export async function testVision(llm) {
+  const client = ocrVisionClient() || (llm?.supportsVision ? llm : null);
+  if (!client) {
+    return { ok: false, error: '还没有可用的视觉模型：请填 OCR_BASE_URL / OCR_MODEL / OCR_API_KEY' };
+  }
+  const sharp = (await import('sharp')).default;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="90">
+    <rect width="100%" height="100%" fill="white"/>
+    <text x="16" y="58" font-family="Helvetica, Arial" font-size="34" fill="black">OCR TEST 12345</text>
+  </svg>`;
+  const jpeg = await sharp(Buffer.from(svg)).jpeg({ quality: 80 }).toBuffer();
+  const t0 = Date.now();
+  try {
+    const text = await client.chat({
+      messages: [
+        { role: 'system', content: '只把图片里的文字原样输出，不要解释。' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: '读出图片里的文字' },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpeg.toString('base64')}` } },
+          ],
+        },
+      ],
+      maxTokens: 100,
+    });
+    return {
+      ok: true,
+      model: client.model || null,
+      ms: Date.now() - t0,
+      sample: String(text).trim().slice(0, 80),
+    };
+  } catch (e) {
+    return { ok: false, error: e.message, ms: Date.now() - t0 };
+  }
+}
+
 /** 给界面用：三种方式各自是否可用，以及当前选的是哪个。 */
 export async function backendStatus(llm) {
   const localOk = await localAvailable();

@@ -35,7 +35,7 @@ import {
 import { buildAttachmentBlock, buildSystemPrompt, diffLines, parseDrafts, stripDrafts } from './agent.js';
 import { buildVectorsFor } from './vectors.js';
 import { applySettings, maskedSettings, readSettings, writeSettings } from './settings.js';
-import { backendStatus } from './ocr.js';
+import { backendStatus, testVision } from './ocr.js';
 import { ocrPdf } from './ocr.js';
 import { renderMaterialBlock, searchMaterialsSmart } from './materialindex.js';
 import { pagesFromText } from './ocr.js';
@@ -463,6 +463,12 @@ async function handleTeacher(req, res, url, p) {
           effective: { chatProvider: llm.provider, chatModel: llm.model },
         });
       }
+    }
+
+    // ---- OCR 冒烟测试：确认视觉模型配对了没有 ----
+    if (p === '/api/teacher/ocr/test' && method === 'POST') {
+      const r = await testVision(llm);
+      return json(res, 200, r);
     }
 
     // ---- OCR（扫描版 PDF → 文本），后台任务 + 进度 ----
