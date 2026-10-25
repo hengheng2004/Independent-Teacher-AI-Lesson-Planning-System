@@ -11,7 +11,7 @@ const FILE = path.join(SERVICE_DIR, 'data/settings.json');
 const EMPTY = {
   chat: { provider: '', baseUrl: '', apiKey: '', model: '' },
   review: { model: '' },
-  ocr: { baseUrl: '', apiKey: '', model: '' },
+  ocr: { backend: '', baseUrl: '', apiKey: '', model: '' },
 };
 
 export function readSettings() {
@@ -64,6 +64,7 @@ export function applySettings(s = readSettings()) {
   }
 
   if (s.review.model) set('REVIEW_MODEL', s.review.model);
+  if (s.ocr.backend) set('OCR_BACKEND', s.ocr.backend);
   if (s.ocr.baseUrl) set('OCR_BASE_URL', s.ocr.baseUrl);
   if (s.ocr.apiKey) set('OCR_API_KEY', s.ocr.apiKey);
   if (s.ocr.model) set('OCR_MODEL', s.ocr.model);

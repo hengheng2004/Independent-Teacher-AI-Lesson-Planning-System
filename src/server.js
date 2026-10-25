@@ -35,6 +35,7 @@ import {
 import { buildAttachmentBlock, buildSystemPrompt, diffLines, parseDrafts, stripDrafts } from './agent.js';
 import { buildVectorsFor } from './vectors.js';
 import { applySettings, maskedSettings, readSettings, writeSettings } from './settings.js';
+import { backendStatus } from './ocr.js';
 import { ocrPdf } from './ocr.js';
 import { renderMaterialBlock, searchMaterialsSmart } from './materialindex.js';
 import { pagesFromText } from './ocr.js';
@@ -131,6 +132,14 @@ const CODE_VERSION = (() => {
     return '';
   }
 })();
+
+const safeHost = (u) => {
+  try {
+    return new URL(u).hostname;
+  } catch {
+    return String(u || '').slice(0, 40);
+  }
+};
 
 const COOKIE = 'dsh_teacher';
 const loginFails = new Map(); // ip -> {n, until}
@@ -372,9 +381,9 @@ async function handleTeacher(req, res, url, p) {
         model: llm.model || 'mock',
         codeVersion: CODE_VERSION,
         ocr: {
-          backend: await resolveBackend(llm),
+          ...(await backendStatus(llm)),
           visionModel: process.env.OCR_MODEL || (llm.supportsVision ? llm.model : null),
-          visionBase: process.env.OCR_BASE_URL ? new URL(process.env.OCR_BASE_URL).hostname : null,
+          visionBase: process.env.OCR_BASE_URL ? safeHost(process.env.OCR_BASE_URL) : null,
         },
         adminUrl: `/teacher`,
         summary: store.summary(7),
@@ -431,6 +440,7 @@ async function handleTeacher(req, res, url, p) {
       if (method === 'GET') {
         return json(res, 200, {
           settings: maskedSettings(),
+          ocrStatus: await backendStatus(llm),
           effective: {
             chatProvider: llm.provider,
             chatModel: llm.model,

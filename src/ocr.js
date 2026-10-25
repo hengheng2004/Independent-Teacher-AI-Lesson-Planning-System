@@ -154,6 +154,14 @@ export async function resolveBackend(llm) {
   return null;
 }
 
+/** 给界面用：三种方式各自是否可用，以及当前选的是哪个。 */
+export async function backendStatus(llm) {
+  const localOk = await localAvailable();
+  const visionOk = Boolean(ocrVisionClient()?.supportsVision || llm?.supportsVision);
+  const chosen = await resolveBackend(llm);
+  return { chosen, localAvailable: localOk, visionAvailable: visionOk, preferred: (process.env.OCR_BACKEND || 'auto').toLowerCase() };
+}
+
 /** OCR 实际使用的客户端：独立视觉模型优先，否则用主模型。 */
 export function ocrClient(mainLLM) {
   return ocrVisionClient() || mainLLM;

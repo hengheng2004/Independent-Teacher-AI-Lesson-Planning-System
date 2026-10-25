@@ -1409,8 +1409,8 @@ async function renderSettings() {
   if (state.ocr) {
     const ocrBox = el('div', 'row');
     ocrBox.style.marginTop = '10px';
-    const label = { local: '本机 OCR', vision: '视觉模型', null: '不可用' }[state.ocr.backend] || state.ocr.backend;
-    ocrBox.appendChild(el('span', `badge ${state.ocr.backend === 'vision' ? 'ok' : ''}`, `OCR：${label}`));
+    const label = { local: '本机 OCR', vision: '视觉模型', null: '不可用' }[state.ocr.chosen] || state.ocr.chosen;
+    ocrBox.appendChild(el('span', `badge ${state.ocr.chosen === 'vision' ? 'ok' : ''}`, `OCR：${label}`));
     if (state.ocr.visionModel) ocrBox.appendChild(el('span', 'muted small', `${state.ocr.visionModel}${state.ocr.visionBase ? ' @ ' + state.ocr.visionBase : ''}`));
     c1.appendChild(ocrBox);
     c1.appendChild(el('p', 'muted small', '扫描版 PDF 的取字方式。视觉模型在下面的「OCR 视觉模型」里填，和聊天模型分开，互不影响。'));
@@ -1511,6 +1511,32 @@ async function renderSettings() {
   form.appendChild(el('h3', '', '审查 agent'));
   field(form, '模型名', 'set-review-model', st.review.model, `留空=跟随聊天模型（${data.effective.reviewModel || state.model || '当前模型'}）`);
 
+  form.appendChild(el('h3', '', 'OCR 方式'));
+  const status = data.ocrStatus || {};
+  const modes = [
+    { v: 'auto', label: '自动', hint: '配了视觉模型就用它，否则用本机' },
+    { v: 'local', label: '本机 OCR', hint: status.localAvailable ? '可用' : '当前不可用' },
+    { v: 'vision', label: '视觉模型', hint: status.visionAvailable ? '可用' : '未配置' },
+  ];
+  const modeRow = el('div', 'chips');
+  modeRow.style.marginBottom = '8px';
+  const current = (st.ocr.backend || 'auto').toLowerCase();
+  for (const m of modes) {
+    const btn = el('button', 'chip' + (current === m.v ? ' on' : ''), `${m.label}（${m.hint}）`);
+    btn.type = 'button';
+    btn.dataset.mode = m.v;
+    btn.onclick = () => {
+      [...modeRow.children].forEach((b) => b.classList.toggle('on', b === btn));
+      form.dataset.ocrBackend = m.v;
+    };
+    modeRow.appendChild(btn);
+  }
+  form.dataset.ocrBackend = current;
+  form.appendChild(modeRow);
+  if (!status.visionAvailable) {
+    form.appendChild(el('p', 'muted small', '视觉模型还没配：在下面填 Base URL / 模型 / Key 后才能选「视觉模型」。'));
+  }
+
   form.appendChild(el('h3', '', 'OCR 视觉模型'));
   field(form, 'Base URL', 'set-ocr-base', st.ocr.baseUrl, 'https://dashscope.aliyuncs.com/compatible-mode/v1');
   field(form, '模型名', 'set-ocr-model', st.ocr.model, 'qwen-vl-max');
@@ -1532,6 +1558,7 @@ async function renderSettings() {
         },
         review: { model: $('#set-review-model').value.trim() },
         ocr: {
+          backend: form.dataset.ocrBackend || '',
           baseUrl: $('#set-ocr-base').value.trim(),
           model: $('#set-ocr-model').value.trim(),
           apiKey: maskGuard($('#set-ocr-key').value),
