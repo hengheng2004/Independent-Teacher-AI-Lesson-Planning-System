@@ -14,13 +14,20 @@ const EMPTY = {
   ocr: { backend: '', baseUrl: '', apiKey: '', model: '', command: '' },
 };
 
+const clean = (v) => String(v ?? '').replace(/[\u200b-\u200d\ufeff]/g, '').trim();
+
 export function readSettings() {
+  const cleanGroup = (base, got) => {
+    const out = { ...base };
+    for (const [k, v] of Object.entries(got || {})) out[k] = clean(v);
+    return out;
+  };
   try {
     const j = JSON.parse(fs.readFileSync(FILE, 'utf8'));
     return {
-      chat: { ...EMPTY.chat, ...(j.chat || {}) },
-      review: { ...EMPTY.review, ...(j.review || {}) },
-      ocr: { ...EMPTY.ocr, ...(j.ocr || {}) },
+      chat: cleanGroup(EMPTY.chat, j.chat),
+      review: cleanGroup(EMPTY.review, j.review),
+      ocr: cleanGroup(EMPTY.ocr, j.ocr),
     };
   } catch {
     return structuredClone(EMPTY);

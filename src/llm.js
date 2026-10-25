@@ -2,6 +2,10 @@
 // 没有 key 时用 mock，链路、引用校验和留痕都能跑通，只是答案是占位内容。
 const TIMEOUT_MS = 90_000;
 
+// 推理型模型（deepseek-flash / reasoner / r1 / thinking…）会先把预算花在思考上，
+// 预算不够时正文是空字符串。用它时要自动放大上限。
+const reasoningModel = (name) => /reason|flash|r1|thinking|qwq|o1|o3/i.test(String(name || ''));
+
 function pickProvider(env) {
   const p = (env.LLM_PROVIDER || 'auto').toLowerCase();
   if (p !== 'auto') return p;
@@ -94,6 +98,9 @@ export function createLLM(env = process.env) {
     // DeepSeek 目前没有视觉模型；OpenAI 兼容端点按模型名粗判
     supportsVision: provider !== 'deepseek' && /vl|vision|gpt-4o|gpt-4\.1|gemini|claude/i.test(cfg.model || ''),
     async complete({ system, user, maxTokens = 1300 }) {
+      // 推理型模型（deepseek-flash / reasoner / r1 / thinking…）会先把预算花在思考上，
+      // 预算不够时正文是空字符串。这里自动放大，并在真的空时给出可读错误。
+      const budget = reasoningModel(cfg.model) ? Math.min(8000, Math.round(maxTokens * 3)) : maxTokens;
       const data = await postJSON(
         cfg.url,
         { authorization: `Bearer ${cfg.key}` },
@@ -104,11 +111,18 @@ export function createLLM(env = process.env) {
             { role: 'user', content: user },
           ],
           temperature: 0.2,
-          max_tokens: maxTokens,
+          max_tokens: budget,
           stream: false,
         },
       );
       const text = data?.choices?.[0]?.message?.content ?? '';
+      const finish = data?.choices?.[0]?.finish_reason;
+      if (!String(text).trim()) {
+        throw new Error(
+          `模型「${cfg.model}」返回了空内容${finish === 'length' ? '（预算被推理占满）' : ''}。` +
+            '如果是推理型模型，请换用非推理模型（如 deepseek-chat），或把 max_tokens 调大。',
+        );
+      }
       return {
         text,
         usage: {
@@ -123,17 +137,24 @@ export function createLLM(env = process.env) {
      * 流式时每来一段就调 onDelta(text)；厂商不支持 SSE 时自动退回一次性返回。
      */
     async chat({ messages, maxTokens = 2400, stream = false, onDelta, model }) {
+      const useModel = model || cfg.model;
+      const budget = reasoningModel(useModel) ? Math.min(8000, Math.round(maxTokens * 2)) : maxTokens;
       const body = {
-        model: model || cfg.model,
+        model: useModel,
         messages,
         temperature: 0.3,
-        max_tokens: maxTokens,
+        max_tokens: budget,
         stream: Boolean(stream),
       };
 
       if (!stream || !onDelta) {
         const data = await postJSON(cfg.url, { authorization: `Bearer ${cfg.key}` }, body);
         const text = data?.choices?.[0]?.message?.content ?? '';
+        if (!String(text).trim()) {
+          throw new Error(
+            `模型「${useModel}」返回了空内容（如果是推理型模型，预算可能被思考占满）。换 deepseek-chat 或调大输出上限。`,
+          );
+        }
         return {
           text,
           streamed: false,
