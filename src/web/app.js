@@ -66,6 +66,7 @@ async function boot() {
     state.provider = s.provider;
     state.model = s.model;
     state.ocr = s.ocr;
+    state.prep = s.prep;
     state.codeVersion = s.codeVersion;
     state.summary = s.summary;
     $('#login').classList.add('hide');
@@ -807,6 +808,35 @@ async function renderPrep(id, chapterKey) {
     $('#prompt').focus();
   };
   head.appendChild(reviewBtn);
+
+  // 输出上限：可在备课界面直接调，旁边给出预估能写多少字
+  const prepInfo = state.prep || { maxTokens: 32000, charsPerToken: 1.6, reasoning: false };
+  const capLabel = el('span', 'muted small');
+  const capBtn = el('button', 'small', '调整');
+  const renderCap = () => {
+    const budget = state.prepBudget || prepInfo.maxTokens;
+    const chars = Math.round(budget * (prepInfo.charsPerToken || 1.6));
+    const human = chars >= 10000 ? `${(chars / 10000).toFixed(1)} 万字` : `${chars} 字`;
+    capLabel.textContent = `上限 ${budget} tokens · 预估可写 ≈ ${human}${prepInfo.reasoning ? '（推理模型约一半）' : ''}`;
+  };
+  capBtn.onclick = async () => {
+    const cur = state.prepBudget || prepInfo.maxTokens;
+    const v = prompt(`备课输出上限（tokens，1000–32000）\n\n只是上限，不写满不额外花钱。`, String(cur));
+    if (v === null) return;
+    const n = Math.max(1000, Math.min(32000, Math.round(Number(v) || cur)));
+    state.prepBudget = n;
+    renderCap();
+    try {
+      await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify({ prep: { maxTokens: String(n) } }) });
+      toast(`输出上限已设为 ${n} tokens`);
+    } catch (e) {
+      toast(`本次按 ${n} 执行（保存配置失败：${e.message}）`);
+    }
+  };
+  renderCap();
+  head.appendChild(capLabel);
+  head.appendChild(capBtn);
+
   m.appendChild(head);
 
   const wrap = el('div', 'prep');
@@ -994,6 +1024,7 @@ async function sendMessage() {
         courseId: state.courseId,
         chapter: state.chapter,
         agent: state.agent,
+        maxTokens: state.prepBudget || undefined,
         sessionId: state.session.id,
         message: text,
         attachments: [...state.attachments],
@@ -1549,14 +1580,6 @@ async function renderSettings() {
   field(form, '模型名', 'set-chat-model', st.chat.model, 'deepseek-chat / gpt-4o-mini …');
   keyField(form, 'API Key', 'set-chat-key', st.chat.apiKey, st.chat.apiKey ? '已设置，留空不改' : 'sk-…');
 
-  field(
-    form,
-    '备课输出上限',
-    'set-prep-max',
-    st.prep && st.prep.maxTokens,
-    '留空=32000（上限，不写满不花钱）。推理型模型会把预算花在思考上，太小会被截断',
-  );
-
   form.appendChild(el('h3', '', '审查 agent'));
   field(form, '模型名', 'set-review-model', st.review.model, `留空=跟随聊天模型（${data.effective.reviewModel || state.model || '当前模型'}）`);
 
@@ -1616,7 +1639,6 @@ async function renderSettings() {
           model: $('#set-chat-model').value.trim(),
           apiKey: maskGuard($('#set-chat-key').value),
         },
-        prep: { maxTokens: $('#set-prep-max').value.trim() },
         review: { model: $('#set-review-model').value.trim() },
         ocr: {
           backend: form.dataset.ocrBackend || '',

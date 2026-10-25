@@ -135,6 +135,15 @@ const CODE_VERSION = (() => {
   }
 })();
 
+const clampTokens = (n) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.min(32000, Math.max(1000, Math.round(v)));
+};
+
+// 推理型模型会先消耗预算思考，实际能写正文的量约为一半
+const isReasoningModel = (name) => /reason|flash|r1|thinking|qwq|o1|o3/i.test(String(name || ''));
+
 const safeHost = (u) => {
   try {
     return new URL(u).hostname;
@@ -382,6 +391,13 @@ async function handleTeacher(req, res, url, p) {
         provider: llm.provider,
         model: llm.model || 'mock',
         codeVersion: CODE_VERSION,
+        prep: {
+          maxTokens: Number(process.env.PREP_MAX_TOKENS) || 32000,
+          model: llm.model,
+          reasoning: isReasoningModel(llm.model),
+          // 经验值：DeepSeek 中文正文约 1 token ≈ 1.6 字（实测 13308 字 / 8297 token）
+          charsPerToken: 1.6,
+        },
         ocr: {
           ...(await backendStatus(llm)),
           visionModel: process.env.OCR_MODEL || (llm.supportsVision ? llm.model : null),
@@ -714,11 +730,12 @@ async function handleTeacher(req, res, url, p) {
       try {
         const r = await llm.chat({
           messages,
-          // 备课默认 32000：推理型模型会把一部分预算用在思考上（实测 flash 需 ~13k），8000/16000 都会被截断
+          // 输出上限：请求里带了就用请求的（备课界面可调），否则用配置/默认。
+          // 推理型模型会把一部分预算花在思考上，所以默认给到 32000。
           maxTokens:
             b.agent === 'review'
-              ? Number(process.env.REVIEW_MAX_TOKENS) || 6000
-              : Number(process.env.PREP_MAX_TOKENS) || 32000,
+              ? clampTokens(b.maxTokens) || Number(process.env.REVIEW_MAX_TOKENS) || 6000
+              : clampTokens(b.maxTokens) || Number(process.env.PREP_MAX_TOKENS) || 32000,
         // 审查可以单独指定模型（例如用更强的模型把质量关），没配就跟随聊天模型
         model: b.agent === 'review' ? process.env.REVIEW_MODEL || undefined : undefined,
           stream: true,
