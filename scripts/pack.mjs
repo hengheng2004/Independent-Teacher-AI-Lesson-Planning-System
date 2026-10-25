@@ -149,6 +149,44 @@ async function main() {
     fs.writeFileSync(path.join(APP, '使用说明.txt'), READ_ME);
   }
 
+  // 打包前安检：key、学生数据、令牌一律不该出现在包里。
+  // 靠"记得删"不可靠，这里直接失败。
+  const forbidden = [
+    '.env',
+    'data/settings.json',
+    'data/admin-token.txt',
+    'data/codes.md',
+    'data/assistant.db',
+    'data/assistant.db-wal',
+    'config/students.json',
+  ];
+  for (const rel of forbidden) {
+    if (fs.existsSync(path.join(APP, rel))) {
+      throw new Error(`包里不该有 ${rel}：${path.join(APP, rel)}`);
+    }
+  }
+
+  const TEXT_EXT = new Set(['.js', '.mjs', '.json', '.md', '.txt', '.html', '.css', '.sh', '.command', '.bat', '.example']);
+  const KEY_RE = /sk-[A-Za-z0-9]{16,}/;
+  const leaks = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === 'node_modules' || e.name === 'models' || e.name === 'fonts') continue;
+        walk(abs);
+      } else if (TEXT_EXT.has(path.extname(e.name))) {
+        const src = fs.readFileSync(abs, 'utf8');
+        if (KEY_RE.test(src)) leaks.push(path.relative(APP, abs));
+      }
+    }
+  };
+  walk(APP);
+  if (leaks.length) {
+    throw new Error(`包里发现疑似 API key：${leaks.join(', ')}`);
+  }
+  log('安检通过：无 .env / 无学生数据 / 无 key');
+
   log(`总大小 ${await size(APP)}`);
 
   // 6) 压缩（用 ditto 保留可执行权限与中文文件名）
