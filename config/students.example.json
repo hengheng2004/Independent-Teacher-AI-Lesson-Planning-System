@@ -1,0 +1,13 @@
+{
+  "students": [
+    {
+      "name": "示例学生",
+      "course_id": "linear-algebra-demo",
+      "label": null,
+      "project": null,
+      "code_sha256": "（这里存访问码的 SHA-256，明文不落盘）",
+      "quota": { "daily": 20, "total": 100 },
+      "created_at": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}

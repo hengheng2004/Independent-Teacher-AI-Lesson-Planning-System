@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>助教后台</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e6e3dd;--accent:#22543d;--warn:#8a5a00;--warn-soft:#fdf3e0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 18px 60px}
+  h1{font-size:18px;margin:0 0 4px}
+  .muted{color:var(--muted);font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .kpi b{display:block;font-size:24px;font-weight:600;line-height:1.2}
+  .kpi span{font-size:12px;color:var(--muted)}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  input,select,button,textarea{font:inherit;border:1px solid var(--line);border-radius:9px;background:#fff;
+    padding:7px 10px;color:inherit}
+  button{cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+  th{background:#fbfaf8;font-weight:600;font-size:13px;color:var(--muted)}
+  tr.row:hover{background:#fbfaf8;cursor:pointer}
+  .badge{font-size:12px;padding:1px 7px;border-radius:999px;background:#f1efe9;color:var(--muted);white-space:nowrap}
+  .badge.answered{background:#eaf1ec;color:var(--accent)}
+  .badge.unanswered{background:var(--warn-soft);color:var(--warn)}
+  .badge.uncited{background:#fdf3e0;color:var(--warn)}
+  .q{max-width:420px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .drawer{position:fixed;inset:0 0 0 auto;width:min(620px,100%);background:#fff;border-left:1px solid var(--line);
+    padding:20px;overflow:auto;transform:translateX(102%);transition:transform .2s ease;box-shadow:-8px 0 30px rgba(0,0,0,.08)}
+  .drawer.open{transform:translateX(0)}
+  .drawer h2{font-size:15px;margin:0 0 12px}
+  .block{background:#fbfaf8;border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;white-space:pre-wrap;font-size:14px}
+  .hide{display:none}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>课程助教 · 教师后台</h1>
+  <div class="muted" id="status">未登录</div>
+
+  <div class="bar">
+    <input id="token" type="password" placeholder="后台令牌" style="width:280px">
+    <button class="primary" id="login">载入</button>
+    <span class="muted">令牌在 <code>04_助教服务/data/admin-token.txt</code></span>
+  </div>
+
+  <div id="main" class="hide">
+    <div class="cards" id="kpis"></div>
+    <div class="bar">
+      <select id="filter">
+        <option value="">全部</option>
+        <option value="unanswered">待老师补答</option>
+        <option value="uncited">未定位出处</option>
+        <option value="answered">已回答</option>
+      </select>
+      <select id="days"><option value="7">近 7 天</option><option value="30">近 30 天</option><option value="0">全部</option></select>
+      <button id="reload">刷新</button>
+      <span class="muted" id="count"></span>
+    </div>
+    <table>
+      <thead><tr><th>时间</th><th>学生</th><th>问题</th><th>状态</th><th>反馈</th><th>处理</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <div style="display:flex;align-items:center;gap:10px;margin:26px 0 6px">
+      <h2 style="font-size:15px;margin:0">学生与访问码</h2>
+      <button class="primary" id="addStudent">＋ 新增学生</button>
+    </div>
+    <div class="muted" style="margin-bottom:8px" id="quotaHint"></div>
+    <table>
+      <thead><tr><th>学生</th><th>今日</th><th>本月</th><th>累计</th><th>token</th><th>状态</th><th></th></tr></thead>
+      <tbody id="stuRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="bar" style="justify-content:space-between">
+    <h2 style="margin:0">问答详情</h2>
+    <button id="close">关闭</button>
+  </div>
+  <div id="detail"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let TOKEN = localStorage.getItem('ta_admin') || new URLSearchParams(location.search).get('token') || '';
+
+const KIND = {
+  knowledge: '讲知识', problem_guided: '讲题·引导', problem_full: '讲题·完整',
+  problem_step: '只讲这一步', extend: '拓展',
+  hint: '引导（旧）', full: '完整（旧）'
+};
+
+async function api(path, opts={}){
+  const res = await fetch(path, { ...opts, headers:{ 'content-type':'application/json', 'x-admin-token':TOKEN, ...(opts.headers||{}) }});
+  const data = await res.json().catch(()=>({error:'解析失败'}));
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmt = t => (t||'').replace('T',' ').slice(5,16);
+
+/** POST JSON 的简写，错误信息直接透出后端的话 */
+async function jsonApi(path, body){
+  return api(path, { method:'POST', body: JSON.stringify(body||{}) });
+}
+
+async function load(){
+  const days = $('#days').value;
+  const [summary, list] = await Promise.all([
+    api('/api/admin/summary?days=7'),
+    api('/api/admin/questions?limit=200' + (days!=='0' ? `&days=${days}` : '') + ($('#filter').value ? `&status=${$('#filter').value}` : ''))
+  ]);
+  const total = summary.rows.reduce((a,r)=>a+r.total,0);
+  const bad = summary.rows.reduce((a,r)=>a+(r.bad||0),0);
+  const kindText = (summary.byKind||[]).map(k=>`${KIND[k.kind]||k.kind} ${k.c}`).join('，') || '—';
+  $('#kpis').innerHTML = [
+    ['近 7 天提问', total], ['待处理', summary.pending], ['学生反馈“没解决”', bad],
+    ['按类型', kindText],
+    ['按学生', summary.top.map(t=>`${t.student||'?'} ${t.c}`).join('，') || '—']
+  ].map(([k,v])=>`<div class="kpi"><b>${esc(String(v))}</b><span>${esc(k)}</span></div>`).join('');
+
+  $('#count').textContent = `共 ${list.questions.length} 条`;
+  $('#rows').innerHTML = list.questions.map(q=>`
+    <tr class="row" data-id="${q.id}">
+      <td class="muted">${fmt(q.created_at)}</td>
+      <td>${esc(q.student||'—')}</td>
+      <td><span class="badge">${esc(KIND[q.mode]||q.mode||'—')}</span><div class="q" style="margin-top:2px">${esc(q.question)}</div></td>
+      <td><span class="badge ${q.status}">${{answered:'已回答',unanswered:'待补答',uncited:'未定位',extended:'拓展'}[q.status]||q.status}</span></td>
+      <td>${q.feedback==='up'?'👍':q.feedback==='down'?'👎':'—'}</td>
+      <td>${q.resolved? '已处理' : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">还没有提问。</td></tr>';
+
+  document.querySelectorAll('tr.row').forEach(tr=>tr.onclick=()=>openDetail(Number(tr.dataset.id), list.questions));
+  await loadStudents();
+}
+
+const cell = (used, limit) => {
+  if (!limit) return `${used} <span class="muted">/ 不限</span>`;
+  const full = used >= limit;
+  return `${used} <span class="muted">/ ${limit}</span>` + (full ? ' <span class="badge unanswered">已满</span>' : '');
+};
+
+async function loadStudents(){
+  const data = await api('/api/admin/students');
+  $('#quotaHint').textContent = `按上海自然日 ${data.day} 统计；点“改额度”可单独调整，0 表示不限。`;
+  $('#stuRows').innerHTML = data.students.map(s=>`
+    <tr data-name="${esc(s.name)}">
+      <td><strong>${esc(s.name)}</strong><div class="muted">${esc(s.label||'')}</div></td>
+      <td>${cell(s.usage.daily, s.limits.daily)}</td>
+      <td>${cell(s.usage.monthly, s.limits.monthly)}</td>
+      <td>${cell(s.usage.total, s.limits.total)}</td>
+      <td>${s.usage.tokens} <span class="muted">/ ${s.limits.tokens || '不限'}</span></td>
+      <td>${s.active ? '<span class="badge answered">启用</span>' : '<span class="badge">停用</span>'}</td>
+      <td style="white-space:nowrap">
+        <button data-act="profile">画像</button>
+        <button data-act="quota">额度</button>
+        <button data-act="rotate">换码</button>
+        <button data-act="toggle">${s.active ? '停用' : '启用'}</button>
+        <button data-act="delete" style="color:#8a2c2c">删除</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">还没有学生。</td></tr>';
+
+  document.querySelectorAll('#stuRows tr[data-name]').forEach(tr=>{
+    const s = data.students.find(x=>x.name===tr.dataset.name);
+    tr.querySelector('[data-act=profile]').onclick = ()=>openProfile(s);
+    tr.querySelector('[data-act=quota]').onclick = ()=>editQuota(s);
+    tr.querySelector('[data-act=toggle]').onclick = async ()=>{
+      await api('/api/admin/action',{method:'POST',body:JSON.stringify({action:'student',name:s.name,active:!s.active})});
+      loadStudents();
+    };
+    tr.querySelector('[data-act=rotate]').onclick = async ()=>{
+      if (!confirm(`给「${s.name}」换一个新码？旧码立刻失效，历史问答和额度都保留。`)) return;
+      const r = await jsonApi('/api/admin/students/rotate',{name:s.name});
+      showCode(s.name, r.code, '新码已生效，旧码作废。');
+    };
+    tr.querySelector('[data-act=delete]').onclick = async ()=>{
+      if (!confirm(`删除「${s.name}」？\n\n· 这个码立刻失效，重启后也不会恢复\n· 历史问答保留\n· 额度设置一并移除（画像文件还在）`)) return;
+      await jsonApi('/api/admin/students/delete',{name:s.name});
+      loadStudents();
+    };
+  });
+}
+
+// 新增 / 换码后展示明文码（只显示这一次）
+function showCode(name, code, note){
+  $('#detail').innerHTML = `
+    <div class="muted">${esc(note || '')}</div>
+    <h3 style="font-size:14px;margin:14px 0 6px">${esc(name)} 的访问码</h3>
+    <div class="block" style="font-size:26px;font-family:ui-monospace,Menlo,monospace;letter-spacing:2px;text-align:center">${esc(code)}</div>
+    <div class="bar" style="margin-top:10px">
+      <button class="primary" id="copyCode">复制</button>
+      <span class="muted" id="copyMsg">屏幕上只显示这一次，明文已记到 data/codes.md</span>
+    </div>
+  `;
+  $('#drawer').classList.add('open');
+  $('#copyCode').onclick = async () => {
+    try { await navigator.clipboard.writeText(code); $('#copyMsg').textContent = '已复制 ✓'; }
+    catch { $('#copyMsg').textContent = '复制失败，请手动选中'; }
+  };
+}
+
+async function openCreate(){
+  const cfg = await api('/api/courses');
+  const courses = cfg.courses.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+  $('#detail').innerHTML = `
+    <div class="muted">新增学生</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+      <label class="muted">名字<input id="n-name" type="text" placeholder="张三 / 李四"></label>
+      <label class="muted">课程<select id="n-course">${courses}</select></label>
+      <label class="muted">备注<input id="n-label" type="text" placeholder="可选"></label>
+      <label class="muted">学生项目编号<input id="n-project" type="text" placeholder="STU-2026-00X-…（可选）"></label>
+      <label class="muted">每天次数<input id="n-daily" type="number" min="0" value="20"></label>
+      <label class="muted">每月次数<input id="n-monthly" type="number" min="0" value="200"></label>
+      <label class="muted">累计次数<input id="n-total" type="number" min="0" value="0"></label>
+      <label class="muted">每小时上限<input id="n-burst" type="number" min="0" value="10"></label>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:8px">0 表示不限。生成后立刻生效，不需要重启服务。</div>
+    <div class="bar" style="margin-top:12px">
+      <button class="primary" id="n-create">生成访问码</button>
+      <span class="muted" id="n-msg"></span>
+    </div>
+  `;
+  $('#drawer').classList.add('open');
+  $('#n-create').onclick = async () => {
+    $('#n-create').disabled = true;
+    $('#n-msg').textContent = '';
+    try{
+      const r = await jsonApi('/api/admin/students/create', {
+        name: $('#n-name').value.trim(),
+        courseId: $('#n-course').value,
+        label: $('#n-label').value.trim() || null,
+        project: $('#n-project').value.trim() || null,
+        quota: {
+          daily: $('#n-daily').value,
+          monthly: $('#n-monthly').value,
+          total: $('#n-total').value,
+          burstPerHour: $('#n-burst').value,
+        },
+      });
+      showCode(r.name, r.code, '创建成功，把这个码发给学生。');
+      loadStudents();
+    }catch(e){
+      $('#n-msg').textContent = e.message;
+      $('#n-create').disabled = false;
+    }
+  };
+}
+
+// 学生画像：文件在 students/<目录>/学生画像.md，后台只是编辑入口
+async function openProfile(s){
+  let data;
+  try{
+    data = await api('/api/admin/profile?name=' + encodeURIComponent(s.name));
+  }catch(e){
+    $('#detail').innerHTML = `<div class="muted">读不到画像：${esc(e.message)}</div>`;
+    $('#drawer').classList.add('open');
+    return;
+  }
+  const p = data.profile;
+  const where = p.path
+    ? `文件：<code>${esc(p.path)}</code>${p.exists ? '' : '（还没创建，保存后生成）'}`
+    : esc(p.reason || '未绑定学生项目编号');
+  $('#detail').innerHTML = `
+    <div class="muted">学生画像 · ${esc(s.name)}</div>
+    <div class="muted" style="font-size:12px;margin:6px 0 12px">${where}</div>
+
+    <h3 style="font-size:14px;margin:12px 0 6px">自动摘要（来自答疑记录，只读）</h3>
+    <div class="block" style="font-size:13px">${esc(data.digestText)}</div>
+
+    <h3 style="font-size:14px;margin:14px 0 6px">画像内容（Markdown，随便改）</h3>
+    <textarea id="pf" rows="20" style="width:100%;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace">${esc(p.markdown)}</textarea>
+    <div class="bar" style="margin-top:10px">
+      <button class="primary" id="pf-save">保存</button>
+      <button id="pf-draft">用问答记录生成草稿</button>
+      <span class="muted" id="pf-msg"></span>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:8px">
+      这个文件也可以直接用编辑器改（Obsidian、VS Code 都行）。后台每次打开都会重新读文件，旧版本自动备份到 data/profile-backups/。
+    </div>
+  `;
+  $('#drawer').classList.add('open');
+
+  $('#pf-draft').onclick = () => {
+    if (!confirm('会用「模板 + 自动摘要」覆盖当前编辑框内容。已经保存过的内容不会丢，但没保存的会丢。继续？')) return;
+    $('#pf').value = data.draft;
+    $('#pf-msg').textContent = '草稿已填入，记得保存';
+  };
+  $('#pf-save').onclick = async () => {
+    $('#pf-save').disabled = true;
+    try{
+      const r = await api('/api/admin/profile', { method:'POST', body: JSON.stringify({ name: s.name, markdown: $('#pf').value }) });
+      $('#pf-msg').textContent = `已保存（${r.bytes} 字节）`;
+    }catch(e){
+      $('#pf-msg').textContent = '保存失败：' + e.message;
+    }finally{
+      $('#pf-save').disabled = false;
+    }
+  };
+}
+
+function editQuota(s){
+  const L = s.limits;
+  $('#detail').innerHTML = `
+    <div class="muted">额度 · ${esc(s.name)}</div>
+    <h3 style="font-size:14px;margin:14px 0 6px">限额（0 = 不限）</h3>
+    <div class="bar" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label class="muted">每天次数<input id="q-daily" type="number" min="0" value="${L.daily}"></label>
+      <label class="muted">每月次数<input id="q-monthly" type="number" min="0" value="${L.monthly}"></label>
+      <label class="muted">累计次数<input id="q-total" type="number" min="0" value="${L.total}"></label>
+      <label class="muted">累计 token<input id="q-tokens" type="number" min="0" value="${L.tokens}"></label>
+      <label class="muted">每小时上限<input id="q-burst" type="number" min="0" value="${L.burstPerHour}"></label>
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:10px">
+      已用：今日 ${s.usage.daily} · 本月 ${s.usage.monthly} · 累计 ${s.usage.total} · token ${s.usage.tokens}
+    </div>
+    <div class="bar" style="margin-top:12px"><button class="primary" id="q-save">保存</button></div>
+  `;
+  $('#drawer').classList.add('open');
+  $('#q-save').onclick = async () => {
+    const quota = {
+      daily: Number($('#q-daily').value),
+      monthly: Number($('#q-monthly').value),
+      total: Number($('#q-total').value),
+      tokens: Number($('#q-tokens').value),
+      burstPerHour: Number($('#q-burst').value),
+    };
+    await api('/api/admin/action',{method:'POST',body:JSON.stringify({action:'quota',name:s.name,quota})});
+    $('#q-save').textContent = '已保存 ✓';
+    loadStudents();
+  };
+}
+
+function openDetail(id, all){
+  const q = all.find(x=>x.id===id);
+  if (!q) return;
+  const cits = q.citations || [];
+  $('#detail').innerHTML = `
+    <div class="muted">#${q.id} · ${esc(q.student||'—')} · ${esc(q.created_at)} · ${esc(q.mode)} · ${esc(q.provider)} · ${q.latency_ms}ms · ${q.tokens_in}+${q.tokens_out} tok</div>
+    <h3 style="font-size:14px;margin:14px 0 6px">学生提问</h3>
+    <div class="block">${esc(q.question)}</div>
+    <h3 style="font-size:14px;margin:14px 0 6px">助教回答（纯文本）</h3>
+    <div class="block">${esc(q.answer)}</div>
+    <h3 style="font-size:14px;margin:14px 0 6px">引用（${cits.length}）</h3>
+    ${cits.map(c=>`<div class="muted" style="font-size:12px">${esc(c.id)} · ${esc(c.label)}</div>`).join('') || '<div class="muted">无</div>'}
+    <h3 style="font-size:14px;margin:14px 0 6px">处理</h3>
+    <div class="bar">
+      <button class="primary" data-act="resolve">标记已处理</button>
+      <button data-act="unresolve">取消已处理</button>
+    </div>
+    <textarea id="note" rows="3" placeholder="批注：答错在哪、需要补哪段讲义（写进本地日志）" style="width:100%"></textarea>
+    <div class="bar"><button data-act="note">保存批注</button></div>
+    <div class="muted" style="font-size:12px">提示：发现答错时，先写进课程库的 <code>待确认与勘误.md</code>，重跑 <code>npm run build</code> 后知识包会带上勘误。</div>
+  `;
+  $('#drawer').classList.add('open');
+  $('#detail').querySelectorAll('button[data-act]').forEach(b=>{
+    b.onclick = async () => {
+      const act = b.dataset.act;
+      if (act==='resolve') await api('/api/admin/action',{method:'POST',body:JSON.stringify({action:'resolve',id,resolved:true})});
+      if (act==='unresolve') await api('/api/admin/action',{method:'POST',body:JSON.stringify({action:'resolve',id,resolved:false})});
+      if (act==='note') await api('/api/admin/action',{method:'POST',body:JSON.stringify({action:'note',id,body:$('#note').value})});
+      b.textContent = '已保存 ✓';
+      load();
+    };
+  });
+}
+
+$('#login').onclick = async () => {
+  TOKEN = $('#token').value.trim();
+  localStorage.setItem('ta_admin', TOKEN);
+  try{
+    await api('/api/admin/summary?days=7');
+    $('#main').classList.remove('hide');
+    $('#status').textContent = '已登录';
+    load();
+  }catch(e){ $('#status').textContent = '登录失败：' + e.message; }
+};
+$('#reload').onclick = load;
+$('#filter').onchange = load;
+$('#days').onchange = load;
+$('#close').onclick = () => $('#drawer').classList.remove('open');
+$('#addStudent').onclick = () => openCreate();
+
+if (TOKEN){ $('#token').value = TOKEN; $('#login').click(); }
+</script>
+</body>
+</html>

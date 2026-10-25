@@ -1,0 +1,53 @@
+{
+  "quotaDefaults": {
+    "daily": 20,
+    "monthly": 200,
+    "total": 0,
+    "tokens": 0,
+    "burstPerHour": 10
+  },
+  "courses": [
+    {
+      "id": "linear-algebra-demo",
+      "name": "线性代数（示例）",
+      "school": "示例大学",
+      "teacher": "示例老师",
+      "enabled": true,
+      "quota": {
+        "daily": 20,
+        "monthly": 200
+      },
+      "policy": {
+        "defaultMode": "hint",
+        "allowFullSolution": true,
+        "note": "默认诱教：先给思路与下一步，学生点“看完整过程”才展开推导。"
+      },
+      "denyGlobs": [
+        "*备课*",
+        "*教师*",
+        "*答案*",
+        "*解答*",
+        "资料/*"
+      ],
+      "chapters": [
+        {
+          "key": "ch1",
+          "title": "第一章 向量空间",
+          "sources": [
+            "学生讲义.md"
+          ]
+        }
+      ],
+      "references": [
+        "资料清单.md"
+      ],
+      "errata": [
+        "待确认与勘误.md"
+      ],
+      "notes": [
+        "学生讲义.md 只放学生版内容；教师版、答案、教材 PDF 一律不进学生端。",
+        "换成自己的课：把 courses/<你的课程>/ 建好，改这里一条即可。"
+      ]
+    }
+  ]
+}

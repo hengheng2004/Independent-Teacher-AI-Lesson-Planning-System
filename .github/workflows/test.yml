@@ -1,0 +1,19 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # 测试不依赖向量模型，也不依赖任何 API key
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run check

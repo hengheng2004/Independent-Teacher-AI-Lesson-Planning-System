@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>课程助教</title>
+<link rel="stylesheet" href="/vendor/katex/katex.min.css">
+<style>
+  :root{
+    --bg:#f6f5f2; --card:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e6e3dd;
+    --accent:#22543d; --accent-soft:#eaf1ec; --warn:#8a5a00; --warn-soft:#fdf3e0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-text-size-adjust:100%}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 96px}
+  header{padding:18px 0 10px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .brand h1{font-size:17px;margin:0;font-weight:600;letter-spacing:.2px}
+  .brand .who{font-size:13px;color:var(--muted)}
+  .quota{font-size:12px;padding:2px 9px;border-radius:999px;background:var(--accent-soft);
+    color:var(--accent);border:1px solid #c9dccf;white-space:nowrap}
+  .quota.low{background:var(--warn-soft);color:var(--warn);border-color:#eedcbb}
+  .quota.out{background:#f3e2e2;color:#8a2c2c;border-color:#e5c9c9}
+  .sub{font-size:13px;color:var(--muted);margin-top:4px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+  label.f{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type=text],textarea{width:100%;font:inherit;color:inherit;background:#fbfaf8;
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
+  input[type=text]:focus,textarea:focus{border-color:var(--accent);background:#fff}
+  textarea{resize:vertical;min-height:92px;line-height:1.6}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);
+    background:#fff;padding:8px 14px;color:var(--ink)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+  button.primary:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:6px 8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  .chip{font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);
+    background:#fff;color:var(--muted);cursor:pointer;user-select:none}
+  .chip[aria-pressed=true]{background:var(--accent-soft);border-color:#c9dccf;color:var(--accent);font-weight:500}
+  .msg{margin:14px 0;display:flex;gap:10px}
+  .msg .bubble{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;max-width:100%}
+  .msg.me{justify-content:flex-end}
+  .msg.me .bubble{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-right-radius:4px}
+  .msg.ta .bubble{border-bottom-left-radius:4px}
+  .cite{color:var(--accent);cursor:pointer;font-size:12px;padding:0 1px;text-decoration:underline dotted}
+  .noev{display:inline-block;background:var(--warn-soft);color:var(--warn);border-radius:6px;
+    padding:0 6px;font-size:13px}
+  .meta{font-size:12px;color:var(--muted);margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .badge{font-size:12px;padding:1px 7px;border-radius:999px;background:#f1efe9;color:var(--muted)}
+  .badge.warn{background:var(--warn-soft);color:var(--warn)}
+  .kind{font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+  .kind.knowledge{background:#eef2fb;color:#2f4a8a;border-color:#dbe3f7}
+  .kind.problem_guided{background:var(--accent-soft);color:var(--accent);border-color:#c9dccf}
+  .kind.problem_full{background:#e9f3ec;color:#1f5136;border-color:#cfe6d6}
+  .kind.problem_step{background:#f2eefb;color:#513f8a;border-color:#e2daf6}
+  .kind.extend{background:#fdf3e0;color:var(--warn);border-color:#eedcbb}
+  .composer{position:fixed;left:0;right:0;bottom:0;background:rgba(246,245,242,.96);
+    backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:10px 0 max(10px,env(safe-area-inset-bottom))}
+  .composer .inner{max-width:760px;margin:0 auto;padding:0 16px}
+  .composer .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .sheet{position:fixed;inset:auto 0 0 0;background:#fff;border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;padding:16px;max-height:70vh;overflow:auto;transform:translateY(102%);
+    transition:transform .22s ease;z-index:20;box-shadow:0 -8px 30px rgba(0,0,0,.08)}
+  .sheet.open{transform:translateY(0)}
+  .sheet .src{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .sheet pre{white-space:pre-wrap;font:inherit;margin:0}
+  .hide{display:none!important}
+  .note{font-size:13px;color:var(--muted);background:#fbfaf8;border:1px dashed var(--line);
+    border-radius:10px;padding:10px 12px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1 id="courseName">课程助教</h1>
+      <span class="who" id="who"></span>
+      <span class="quota hide" id="quota"></span>
+    </div>
+    <div class="sub" id="tagline">只讲这门课讲义里的内容，答案带出处。</div>
+  </header>
+
+  <section id="gate">
+    <div class="card">
+      <label class="f" for="code">输入老师给你的访问码</label>
+      <input id="code" type="text" inputmode="latin" autocomplete="one-time-code" placeholder="例如 K7M2-QP4X">
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="enter">进入</button>
+        <span class="badge hide" id="gateErr"></span>
+      </div>
+      <div class="note">访问码按人分配。你的提问只有老师和助教能看到，不会出现在其他同学那里。</div>
+    </div>
+  </section>
+
+  <section id="app" class="hide">
+    <div class="card" style="padding:12px 14px">
+      <label class="f" id="coursePickerLabel" style="margin-bottom:2px">课程</label>
+      <div class="chips hide" id="coursePicker"></div>
+      <label class="f" style="margin:10px 0 2px">这一题属于</label>
+      <div class="chips" id="chapters"></div>
+    </div>
+
+    <div id="thread"></div>
+
+    <div id="startNote" class="note">
+      怎么问最有效：把题目原文贴进来，说清你卡在哪一步。<br>
+      默认只给思路；需要完整解法时，回答下面有「看完整解法」按钮。
+    </div>
+  </section>
+</div>
+
+<div class="composer hide" id="composer">
+  <div class="inner">
+    <textarea id="q" rows="2" placeholder="贴题目，或直接问：为什么子空间一定包含零向量？"></textarea>
+    <div class="row" style="margin-top:8px;justify-content:space-between">
+      <span class="hint" id="counter">Enter 发送，Shift+Enter 换行</span>
+      <button class="primary" id="send">提问</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <strong id="sheetTitle"></strong>
+    <button class="ghost" id="sheetClose">关闭</button>
+  </div>
+  <div class="src" id="sheetSrc"></div>
+  <pre id="sheetBody"></pre>
+</div>
+
+<script src="/vendor/katex/katex.min.js" onerror="window.__noKatex=1"></script>
+<script src="/vendor/katex/contrib/auto-render.min.js" onerror="window.__noKatex=1"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const state = { code: localStorage.getItem('ta_code') || '', course: null, chapter: 'auto', busy: false };
+
+function el(tag, cls, text){ const n=document.createElement(tag); if(cls) n.className=cls; if(text!=null) n.textContent=text; return n; }
+
+function tex(node){
+  if (window.__noKatex || !window.renderMathInElement) return;
+  try{
+    renderMathInElement(node, {
+      delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},
+                  {left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false}],
+      throwOnError:false
+    });
+  }catch(e){}
+}
+
+async function api(path, opts={}){
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'content-type':'application/json', 'x-access-code': state.code, ...(opts.headers||{}) }
+  });
+  const data = await res.json().catch(()=>({error:'返回内容无法解析'}));
+  if (!res.ok){
+    const err = new Error(data.error || ('请求失败 '+res.status));
+    err.payload = data;
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/** 学生端只显示最紧的那个次数额度，不抛四个数字 */
+function renderQuota(summary){
+  const chip = $('#quota');
+  if (!summary || summary.dimension === null){
+    chip.classList.add('hide');
+    return;
+  }
+  const name = { daily:'今日', monthly:'本月', total:'总计' }[summary.dimension] || '剩余';
+  chip.textContent = summary.left > 0 ? `${name}剩余 ${summary.left} 次` : `${name}额度已用完`;
+  chip.className = 'quota' + (summary.left === 0 ? ' out' : summary.left <= 3 ? ' low' : '');
+}
+
+function showGate(msg){
+  $('#gate').classList.remove('hide');
+  $('#app').classList.add('hide');
+  $('#composer').classList.add('hide');
+  if (msg){ const b=$('#gateErr'); b.textContent=msg; b.classList.remove('hide'); }
+}
+
+async function enter(){
+  const code = $('#code').value.trim();
+  if (!code) return;
+  state.code = code;
+  try{
+    const me = await api('/api/me');
+    localStorage.setItem('ta_code', code);
+    $('#who').textContent = me.name ? `· ${me.name}` : '';
+    renderQuota(me.quota?.summary);
+    if (!me.courses || !me.courses.length){
+      showGate('你还没有开通任何课程，找老师开通后再进。');
+      return;
+    }
+    await boot(me.courses);
+  }catch(e){
+    localStorage.removeItem('ta_code');
+    showGate(e.message);
+  }
+}
+
+async function boot(courses){
+  state.courses = courses;
+  $('#gate').classList.add('hide');
+  $('#app').classList.remove('hide');
+  $('#composer').classList.remove('hide');
+
+  // 一人多课时，顶部先选课；只有一门就直接进去
+  const picker = $('#coursePicker');
+  if (courses.length > 1){
+    picker.classList.remove('hide');
+    picker.innerHTML = '';
+    for (const c of courses){
+      const b = el('button','chip',c.name);
+      b.setAttribute('aria-pressed', String(state.course && state.course.id === c.id));
+      b.onclick = () => selectCourse(c);
+      picker.appendChild(b);
+    }
+  } else {
+    picker.classList.add('hide');
+  }
+  selectCourse(courses[0]);
+}
+
+function selectCourse(c){
+  state.course = c;
+  state.chapter = 'auto';
+  $('#courseName').textContent = c.name + ' · 助教';
+  $('#tagline').textContent = '只讲这门课讲义里的内容，答案带出处。';
+  const picker = $('#coursePicker');
+  [...picker.children].forEach((b, i) => b.setAttribute('aria-pressed', String(state.courses[i] && state.courses[i].id === c.id)));
+
+  // 额度是按单算的，切课要重新拉
+  api(`/api/me?course=${encodeURIComponent(c.id)}`)
+    .then((me) => renderQuota(me.quota?.summary))
+    .catch(() => {});
+
+  const box = $('#chapters');
+  box.innerHTML='';
+  const options = [{key:'auto', title:'自动判断'}].concat(c.chapters || []);
+  for (const ch of options){
+    const b = el('button','chip',ch.title);
+    b.setAttribute('aria-pressed', String(ch.key === state.chapter));
+    b.onclick = () => { state.chapter = ch.key; [...box.children].forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); };
+    box.appendChild(b);
+  }
+}
+
+function openSheet(cit){
+  $('#sheetTitle').textContent = cit.label || cit.id;
+  $('#sheetSrc').textContent = `${cit.chapterTitle || ''} · 讲义原文`;
+  $('#sheetBody').textContent = cit.snippet || '';
+  $('#sheet').classList.add('open');
+}
+
+function addUser(text){
+  const m = el('div','msg me');
+  const b = el('div','bubble'); b.textContent = text;
+  m.appendChild(b); $('#thread').appendChild(m);
+}
+
+function addBusy(){
+  const m = el('div','msg ta'); m.id='busy';
+  const b = el('div','bubble'); b.textContent='正在翻讲义…';
+  m.appendChild(b); $('#thread').appendChild(m);
+  return m;
+}
+
+function renderCitations(cits, node){
+  if (!cits.length) return;
+  const row = el('div','meta');
+  row.appendChild(el('span','badge', '出处'));
+  for (const c of cits){
+    const a = el('button','ghost', c.label.length > 26 ? c.label.slice(0,26)+'…' : c.label);
+    a.style.fontSize='12px'; a.style.textDecoration='underline dotted';
+    a.onclick = () => openSheet(c);
+    row.appendChild(a);
+  }
+  node.appendChild(row);
+}
+
+function addAssistant(data){
+  const m = el('div','msg ta');
+  const b = el('div','bubble');
+
+  // 顶部：这次按什么讲法回答的
+  if (data.kindLabel){
+    const tag = el('span','kind ' + data.kind, data.kindLabel);
+    tag.title = data.intent?.source === 'user' ? '你指定了讲法' : '助教判断的讲法';
+    const head = el('div','meta'); head.style.margin = '0 0 8px';
+    head.appendChild(tag);
+    if (data.intent && data.intent.source !== 'user' && data.intent.confidence < 0.75){
+      head.appendChild(el('span','badge','判断可能不准，下面可以换讲法'));
+    }
+    b.appendChild(head);
+  }
+
+  const body = el('div');
+  body.innerHTML = data.html;
+  b.appendChild(body);
+  m.appendChild(b); $('#thread').appendChild(m);
+  tex(b);
+
+  const meta = el('div','meta');
+  if (data.status === 'unanswered') meta.appendChild(el('span','badge warn','已记下，等老师补充'));
+  if (data.status === 'uncited') meta.appendChild(el('span','badge warn','未定位到出处的部分，请谨慎参考'));
+  const up = el('button','ghost','有用'); const down = el('button','ghost','没解决');
+  up.onclick = () => { api('/api/feedback',{method:'POST',body:JSON.stringify({id:data.id,feedback:'up'})}).then(()=>{ up.textContent='已记录 ✓'; up.disabled=true; }).catch(()=>{}); };
+  down.onclick = () => {
+    api('/api/feedback',{method:'POST',body:JSON.stringify({id:data.id,feedback:'down'})})
+      .then(()=>{ down.textContent='已反馈 ✓'; down.disabled=true; }).catch(()=>{});
+  };
+  meta.appendChild(up); meta.appendChild(down);
+
+  // 讲法不合意时一键切换，不用重新打字
+  const k = data.kind;
+  const switchTo = (kind, label, note) => {
+    const btn = el('button','ghost',label);
+    btn.onclick = () => ask(lastQuestion, kind, note);
+    meta.appendChild(btn);
+  };
+  if (k === 'problem_guided'){
+    switchTo('problem_full', '直接给完整过程', '请给出这道题的完整过程。');
+    switchTo('problem_step', '只讲我卡的那一步', '我只想弄清卡住的那一步，不要讲整道题。');
+  } else if (k === 'problem_full' || k === 'problem_step'){
+    switchTo('problem_guided', '换引导模式', '先别给答案，带我自己做一遍。');
+  } else if (k === 'knowledge'){
+    switchTo('extend', '展开讲讲', '这个知识点还能怎么用？和后面的内容有什么联系？');
+  }
+  b.appendChild(meta);
+  renderCitations(data.citations || [], b);
+}
+
+let lastQuestion = '';
+
+async function ask(question, kind = null, followLabel = null){
+  if (state.busy) return;
+  question = (question || '').trim();
+  if (!question) return;
+  state.busy = true;
+  $('#send').disabled = true;
+  lastQuestion = question;
+  addUser(followLabel || question);
+  $('#startNote').classList.add('hide');
+  $('#q').value = '';
+  const busy = addBusy();
+  try{
+    const data = await api('/api/ask', {
+      method:'POST',
+      body: JSON.stringify({ courseId: state.course.id, chapter: state.chapter, question, kind })
+    });
+    busy.remove();
+    addAssistant(data);
+    renderQuota(data.quota?.summary);
+  }catch(e){
+    busy.remove();
+    const m = el('div','msg ta'); const b = el('div','bubble');
+    if (e.status === 429){
+      b.innerHTML = '<span class="noev">额度用完</span><br>' + e.message.replace(/[<>]/g,'');
+      if (e.payload?.quota?.summary) renderQuota(e.payload.quota.summary);
+    } else {
+      b.innerHTML = '<span class="noev">出错了</span><br>' + e.message.replace(/[<>]/g,'');
+    }
+    m.appendChild(b); $('#thread').appendChild(m);
+  }finally{
+    state.busy = false; $('#send').disabled = false;
+    window.scrollTo({top: document.body.scrollHeight, behavior:'smooth'});
+  }
+}
+
+$('#enter').onclick = enter;
+$('#code').addEventListener('keydown', e => { if (e.key === 'Enter') enter(); });
+$('#send').onclick = () => ask($('#q').value, 'hint');
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); ask($('#q').value,'hint'); }
+});
+$('#sheetClose').onclick = () => $('#sheet').classList.remove('open');
+
+if (state.code) enter(); else showGate();
+</script>
+</body>
+</html>

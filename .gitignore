@@ -1,0 +1,36 @@
+# 依赖与构建产物
+node_modules/
+packs/
+data/
+courses/*/助教/
+*.log
+
+# 密钥与个人数据，永远不要提交
+.env
+.env.*
+!.env.example
+data/codes.md
+data/admin-token.txt
+data/assistant.db*
+data/models/
+data/profile-backups/
+
+# 学生画像含个人信息，默认不进版本库（需要时放开）
+students/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 归档的课程与测试残留，不进版本库
+courses/_archived/
+
+# 学生种子含姓名与码哈希，属运行时数据；用 .example 提供格式
+config/students.json
+
+# 只把示例课程放进版本库；真实课程材料（常含他人课件）默认不提交
+courses/*
+!courses/linear-algebra-demo/
+!courses/linear-algebra-demo/**
+# 例外里再排一次构建产物（! 规则会覆盖前面的忽略）
+courses/linear-algebra-demo/助教/

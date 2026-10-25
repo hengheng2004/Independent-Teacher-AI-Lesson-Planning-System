@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教师工作台</title>
+<link rel="stylesheet" href="/vendor/katex/katex.min.css">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="login" class="login hide">
+  <div class="box">
+    <h1>教师工作台</h1>
+    <p class="muted small">输入后台令牌进入。令牌在 <code>data/admin-token.txt</code>。</p>
+    <input id="token" type="password" placeholder="令牌" style="width:100%;margin:10px 0">
+    <button class="primary" id="doLogin" style="width:100%">进入</button>
+    <div id="loginMsg" class="small" style="margin-top:8px;color:var(--danger)"></div>
+  </div>
+</div>
+
+<div id="app" class="hide">
+  <div class="topbar">
+    <span class="brand">教师工作台</span>
+    <span class="ctx" id="ctx"></span>
+    <span class="spacer"></span>
+    <span class="small muted" id="modelInfo"></span>
+    <span class="dot" id="healthDot" title="模型状态"></span>
+    <button class="small" id="logout">退出</button>
+  </div>
+
+  <div class="sidebar nav" id="nav">
+    <a href="#/overview" data-r="overview">概览</a>
+    <a href="#/courses" data-r="courses">课程</a>
+    <a href="#/students" data-r="students">学生</a>
+    <a href="#/qa" data-r="qa">问答</a>
+    <a href="#/settings" data-r="settings">设置</a>
+    <div class="sec">最近课程</div>
+    <div id="navCourses"></div>
+  </div>
+
+  <div class="main" id="main"></div>
+
+  <div class="statusbar">
+    <span id="buildStatus">构建状态读取中…</span>
+    <span class="grow"></span>
+    <button class="small" id="btnBuild">手动重建</button>
+  </div>
+</div>
+
+<div class="drawer" id="drawer">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <h2 id="drawerTitle" style="margin:0">详情</h2>
+    <button id="drawerClose">关闭</button>
+  </div>
+  <div id="drawerBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/vendor/katex/katex.min.js" onerror="window.__noKatex=1"></script>
+<script src="/vendor/katex/contrib/auto-render.min.js" onerror="window.__noKatex=1"></script>
+<script type="module" src="/md.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
