@@ -98,8 +98,9 @@ enrollments             报名关系：学生 × 课程</code></pre>
 <th>方式</th><th>适合</th><th>代价</th>
 </tr></thead><tbody>
 <tr><td>本机 OCR（默认）</td><td>macOS 自带 Vision，离线；其它系统装 <code>poppler-utils</code> + <code>tesseract</code></td><td>免费，50 页约十几秒</td></tr>
-<tr><td>多模态模型</td><td>没有本机 OCR、或需要更准的公式与表格</td><td>按页计费</td></tr>
+<tr><td>多模态模型</td><td>没有本机 OCR、或需要更准的公式与表格</td><td>按页计费，约每页几厘</td></tr>
 </tbody></table></div>
+<p>配多模态模型做 OCR 的完整步骤见 <a href="视觉模型OCR.md">视觉模型 OCR</a>。</p>
 <p>设置 <code>OCR_BACKEND=auto|local|vision</code>。<strong>不必一次识别整本</strong>：点「OCR 识别」时填 <code>3-12</code> 就只识别这几页，之后重跑别的页会合并进同一份文本，不会覆盖已有的。</p>
 <h3>7. 额度按单，成本可控</h3>
 <p>额度有五个维度（每天 / 每月 / 累计 / token / 每小时），<code>0</code> 表示不限。优先级：</p>
