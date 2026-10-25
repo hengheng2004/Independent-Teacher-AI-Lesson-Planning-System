@@ -184,7 +184,27 @@ async function renderOverview() {
   };
   kpi(total, '近 7 天提问');
   kpi(sum.pending || 0, '待处理');
-  kpi((sum.byKind || []).map((k) => `${k.kind} ${k.c}`).join('，') || '—', '按类型');
+  // 按类型：用小标签列出来，避免挤成一行大字
+  const KIND_CN = {
+    knowledge: '讲知识',
+    problem_guided: '讲题·引导',
+    problem_full: '讲题·完整',
+    problem_step: '讲题·单步',
+    extend: '延伸拓展',
+  };
+  const kindCard = el('div', 'kpi');
+  const kindBox = el('div');
+  kindBox.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px';
+  if (!(sum.byKind || []).length) {
+    kindBox.appendChild(el('span', 'muted', '—'));
+  } else {
+    for (const k of sum.byKind) {
+      kindBox.appendChild(el('span', 'badge', `${KIND_CN[k.kind] || k.kind} ${k.c}`));
+    }
+  }
+  kindCard.appendChild(kindBox);
+  kindCard.appendChild(el('span', '', '按类型'));
+  cards.appendChild(kindCard);
   kpi(state.courses.length, '课程');
   m.appendChild(cards);
 

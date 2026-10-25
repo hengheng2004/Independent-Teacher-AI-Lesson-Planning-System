@@ -3,7 +3,7 @@
 // 写种子文件 + 立刻写库（不用重启服务）+ 明文记进 data/codes.md。
 //
 // 用法：node scripts/add-student.mjs --name 张三 --course linear-algebra-demo \
-//         [--label 备注] [--project STU-2026-002-wechat-yang] \
+//         [--label 备注] [--project STU-2026-001-demo] \
 //         [--daily 20 --monthly 200 --total 0 --tokens 0 --burst 10]
 import { loadCourseConfig } from '../src/pack.js';
 import { openStore } from '../src/store.js';

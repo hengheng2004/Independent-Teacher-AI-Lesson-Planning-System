@@ -270,7 +270,7 @@ try {
     body: JSON.stringify({ name: stuName }),
   });
 
-  // 真实课程的编号常带大写（CRS-ECNU-...），接口必须认
+  // 真实课程的编号常带大写（例如 IMPORT-COURSE-01），接口必须认
   const upperId = 'CRS-TEST-UPPER-01';
   const mkUpper = await fetch(`${base}/api/teacher/courses`, {
     method: 'POST',
