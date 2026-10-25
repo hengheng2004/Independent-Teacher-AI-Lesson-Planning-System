@@ -65,6 +65,7 @@ async function boot() {
     state.courses = s.courses;
     state.provider = s.provider;
     state.model = s.model;
+    state.ocr = s.ocr;
     state.summary = s.summary;
     $('#login').classList.add('hide');
     $('#app').classList.remove('hide');
@@ -1370,14 +1371,24 @@ async function renderQA() {
 
 /* ---------------- 设置 ---------------- */
 
-function renderSettings() {
+async function renderSettings() {
   const m = $('#main');
   m.innerHTML = '';
   m.appendChild(el('h1', '', '设置'));
+
+  let data;
+  try {
+    data = await api('/api/teacher/settings');
+  } catch (e) {
+    m.appendChild(el('div', 'notice bad', e.message));
+    return;
+  }
+  const st = data.settings;
+
   const c1 = el('div', 'card');
   c1.appendChild(el('h2', '', '模型'));
-  c1.appendChild(el('div', '', `当前：${state.provider}${state.model ? ' · ' + state.model : ''}`));
-  c1.appendChild(el('p', 'muted small', '厂商与模型来自 .env（LLM_PROVIDER / OPENAI_*），改完重启服务生效。'));
+  c1.appendChild(el('div', '', `当前聊天模型：${state.provider}${state.model ? ' · ' + state.model : ''}`));
+  c1.appendChild(el('p', 'muted small', '保存在 data/settings.json（本机，不进版本库），保存后立即生效。'));
   if (state.ocr) {
     const ocrBox = el('div', 'row');
     ocrBox.style.marginTop = '10px';
@@ -1385,9 +1396,83 @@ function renderSettings() {
     ocrBox.appendChild(el('span', `badge ${state.ocr.backend === 'vision' ? 'ok' : ''}`, `OCR：${label}`));
     if (state.ocr.visionModel) ocrBox.appendChild(el('span', 'muted small', `${state.ocr.visionModel}${state.ocr.visionBase ? ' @ ' + state.ocr.visionBase : ''}`));
     c1.appendChild(ocrBox);
-    c1.appendChild(el('p', 'muted small', '扫描版 PDF 的取字方式。想用视觉模型：在 .env 填 OCR_BASE_URL / OCR_API_KEY / OCR_MODEL（和聊天模型分开）。'));
+    c1.appendChild(el('p', 'muted small', '扫描版 PDF 的取字方式。视觉模型在下面的「OCR 视觉模型」里填，和聊天模型分开，互不影响。'));
   }
   m.appendChild(c1);
+
+  // ---- 可编辑配置 ----
+  const form = el('div', 'card');
+  form.appendChild(el('h2', '', '模型配置'));
+  form.appendChild(
+    el('p', 'muted small', '留空表示不修改。key 明文存本机 data/settings.json，不要把这个文件发给别人。'),
+  );
+
+  const field = (parent, label, id, value, placeholder, type = 'text') => {
+    const row = el('div', 'row');
+    row.style.marginBottom = '8px';
+    const lab = el('label', 'muted small');
+    lab.style.minWidth = '96px';
+    lab.textContent = label;
+    const input = el('input');
+    input.id = id;
+    input.type = type;
+    input.value = value || '';
+    input.placeholder = placeholder || '';
+    input.style.flex = '1';
+    row.appendChild(lab);
+    row.appendChild(input);
+    parent.appendChild(row);
+    return input;
+  };
+
+  form.appendChild(el('h3', '', '备课 / 答疑（聊天模型）'));
+  field(form, '厂商', 'set-chat-provider', st.chat.provider, 'deepseek 或 openai');
+  field(form, 'Base URL', 'set-chat-base', st.chat.baseUrl, '留空=按厂商默认；其它厂商填兼容端点');
+  field(form, '模型名', 'set-chat-model', st.chat.model, 'deepseek-chat / gpt-4o-mini …');
+  field(form, 'API Key', 'set-chat-key', st.chat.apiKey, st.chat.apiKey ? '已设置，留空不改' : 'sk-…', 'password');
+
+  form.appendChild(el('h3', '', '审查 agent'));
+  field(form, '模型名', 'set-review-model', st.review.model, `留空=跟随聊天模型（${data.effective.reviewModel || state.model || '当前模型'}）`);
+
+  form.appendChild(el('h3', '', 'OCR 视觉模型'));
+  field(form, 'Base URL', 'set-ocr-base', st.ocr.baseUrl, 'https://dashscope.aliyuncs.com/compatible-mode/v1');
+  field(form, '模型名', 'set-ocr-model', st.ocr.model, 'qwen-vl-max');
+  field(form, 'API Key', 'set-ocr-key', st.ocr.apiKey, st.ocr.apiKey ? '已设置，留空不改' : 'sk-…', 'password');
+
+  const saveRow = el('div', 'row');
+  saveRow.style.marginTop = '12px';
+  const save = el('button', 'primary', '保存并生效');
+  const msg = el('span', 'muted small', '');
+  save.onclick = async () => {
+    save.disabled = true;
+    try {
+      const payload = {
+        chat: {
+          provider: $('#set-chat-provider').value.trim(),
+          baseUrl: $('#set-chat-base').value.trim(),
+          model: $('#set-chat-model').value.trim(),
+          apiKey: $('#set-chat-key').value.trim(),
+        },
+        review: { model: $('#set-review-model').value.trim() },
+        ocr: {
+          baseUrl: $('#set-ocr-base').value.trim(),
+          model: $('#set-ocr-model').value.trim(),
+          apiKey: $('#set-ocr-key').value.trim(),
+        },
+      };
+      const r = await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify(payload) });
+      msg.textContent = `已保存，聊天模型现在是 ${r.effective.chatProvider} · ${r.effective.chatModel}`;
+      await refreshState();
+      renderSettings();
+    } catch (e) {
+      msg.textContent = '保存失败：' + e.message;
+      save.disabled = false;
+    }
+  };
+  saveRow.appendChild(save);
+  saveRow.appendChild(msg);
+  form.appendChild(saveRow);
+  m.appendChild(form);
 
   const c2 = el('div', 'card');
   c2.appendChild(el('h2', '', '数据'));

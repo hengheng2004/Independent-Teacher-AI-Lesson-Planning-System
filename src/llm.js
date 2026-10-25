@@ -122,9 +122,9 @@ export function createLLM(env = process.env) {
      * 备课对话：多轮消息，可选流式。
      * 流式时每来一段就调 onDelta(text)；厂商不支持 SSE 时自动退回一次性返回。
      */
-    async chat({ messages, maxTokens = 2400, stream = false, onDelta }) {
+    async chat({ messages, maxTokens = 2400, stream = false, onDelta, model }) {
       const body = {
-        model: cfg.model,
+        model: model || cfg.model,
         messages,
         temperature: 0.3,
         max_tokens: maxTokens,

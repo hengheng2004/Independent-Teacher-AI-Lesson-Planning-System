@@ -34,6 +34,7 @@ import {
 } from './courses.js';
 import { buildAttachmentBlock, buildSystemPrompt, diffLines, parseDrafts, stripDrafts } from './agent.js';
 import { buildVectorsFor } from './vectors.js';
+import { applySettings, maskedSettings, readSettings, writeSettings } from './settings.js';
 import { ocrPdf } from './ocr.js';
 import { renderMaterialBlock, searchMaterialsSmart } from './materialindex.js';
 import { pagesFromText } from './ocr.js';
@@ -74,7 +75,8 @@ function refreshConfig() {
   }
 }
 const store = openStore();
-const llm = createLLM();
+applySettings();
+let llm = createLLM();
 
 // 额度优先级：内置默认 < .env < config.courses[].quota < 学生个人覆盖
 const globalQuota = {
@@ -413,6 +415,35 @@ async function handleTeacher(req, res, url, p) {
       }
     }
 
+    // ---- 工作台设置（模型与 key，存 data/settings.json）----
+    if (p === '/api/teacher/settings') {
+      if (method === 'GET') {
+        return json(res, 200, {
+          settings: maskedSettings(),
+          effective: {
+            chatProvider: llm.provider,
+            chatModel: llm.model,
+            reviewModel: process.env.REVIEW_MODEL || llm.model,
+            ocrModel: process.env.OCR_MODEL || null,
+            ocrBackend: (await import('./ocr.js')).resolveBackend
+              ? await (await import('./ocr.js')).resolveBackend(llm)
+              : null,
+          },
+        });
+      }
+      if (method === 'PUT' || method === 'PATCH') {
+        const patch = await body();
+        writeSettings(patch);
+        applySettings();
+        // 重建客户端，立即生效，无需重启进程
+        llm = createLLM();
+        return json(res, 200, {
+          ok: true,
+          effective: { chatProvider: llm.provider, chatModel: llm.model },
+        });
+      }
+    }
+
     // ---- OCR（扫描版 PDF → 文本），后台任务 + 进度 ----
     if (p === '/api/teacher/ocr' && method === 'POST') {
       const b = await body();
@@ -643,6 +674,8 @@ async function handleTeacher(req, res, url, p) {
         const r = await llm.chat({
           messages,
           maxTokens: b.agent === 'review' ? 6000 : 8000,
+        // 审查可以单独指定模型（例如用更强的模型把质量关），没配就跟随聊天模型
+        model: b.agent === 'review' ? process.env.REVIEW_MODEL || undefined : undefined,
           stream: true,
           onDelta: (d) => {
             full += d;
