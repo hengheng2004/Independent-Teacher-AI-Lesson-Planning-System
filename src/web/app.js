@@ -1517,6 +1517,7 @@ async function renderSettings() {
     { v: 'auto', label: '自动', hint: '配了视觉模型就用它，否则用本机' },
     { v: 'local', label: '本机 OCR', hint: status.localAvailable ? '可用' : '当前不可用' },
     { v: 'vision', label: '视觉模型', hint: status.visionAvailable ? '可用' : '未配置' },
+    { v: 'command', label: '自定义命令', hint: status.commandAvailable ? '可用' : '未填命令' },
   ];
   const modeRow = el('div', 'chips');
   modeRow.style.marginBottom = '8px';
@@ -1536,6 +1537,16 @@ async function renderSettings() {
   if (!status.visionAvailable) {
     form.appendChild(el('p', 'muted small', '视觉模型还没配：在下面填 Base URL / 模型 / Key 后才能选「视觉模型」。'));
   }
+
+  form.appendChild(el('h3', '', '自定义 OCR 命令'));
+  form.appendChild(
+    el(
+      'p',
+      'muted small',
+      '如果你有别的本地 OCR（PaddleOCR、RapidOCR、ABBYY…），填一条能对单张图输出文字的命令。可用占位符：{img} 图片路径、{page} 页码、{pdf} 原 PDF、{from}/{to} 页码范围。命令的 stdout 就是该页文字。',
+    ),
+  );
+  field(form, '命令', 'set-ocr-command', st.ocr.command, 'python3 -m rapidocr_onnxruntime --img {img}');
 
   form.appendChild(el('h3', '', 'OCR 视觉模型'));
   field(form, 'Base URL', 'set-ocr-base', st.ocr.baseUrl, 'https://dashscope.aliyuncs.com/compatible-mode/v1');
@@ -1559,6 +1570,7 @@ async function renderSettings() {
         review: { model: $('#set-review-model').value.trim() },
         ocr: {
           backend: form.dataset.ocrBackend || '',
+          command: $('#set-ocr-command').value.trim(),
           baseUrl: $('#set-ocr-base').value.trim(),
           model: $('#set-ocr-model').value.trim(),
           apiKey: maskGuard($('#set-ocr-key').value),

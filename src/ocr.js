@@ -119,6 +119,54 @@ async function ocrLocal({ pdf, from, to, onProgress }) {
   return out;
 }
 
+/* ---------------- command：用户自带的本地 OCR ---------------- */
+
+/**
+ * 自定义 OCR 命令。占位符：
+ *   {img}  单页图片（JPEG）路径
+ *   {page} 页码
+ *   {pdf}  原始 PDF 路径
+ *   {from} {to} 本次页码范围
+ * 命令的 stdout 视为该页的文字。
+ */
+function commandTemplate() {
+  return String(process.env.OCR_COMMAND || '').trim();
+}
+
+function runCommandLine(tpl, vars) {
+  const cmd = tpl.replace(/\{(img|page|pdf|from|to)\}/g, (_, k) => String(vars[k] ?? ''));
+  return new Promise((resolve, reject) => {
+    const p = spawn('sh', ['-c', cmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    p.stdout.on('data', (d) => (out += d));
+    p.stderr.on('data', (d) => (err += d));
+    p.on('exit', (code) => {
+      if (code === 0) resolve(out);
+      else reject(new Error(`自定义 OCR 命令失败（退出码 ${code}）：${err.trim().slice(0, 200) || cmd.slice(0, 120)}`));
+    });
+  });
+}
+
+async function ocrCommand({ pdf, from, to, onProgress }) {
+  const { pages } = await pdfRenderPages(pdf, from, to);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ocr-cmd-'));
+  const tpl = commandTemplate();
+  let out = '';
+  try {
+    for (const item of pages) {
+      const img = path.join(tmp, `p-${item.page}.jpg`);
+      fs.writeFileSync(img, item.jpeg);
+      const text = await runCommandLine(tpl, { img, page: item.page, pdf, from, to });
+      out += `\n## 第 ${item.page} 页\n\n${String(text).trim()}\n`;
+      onProgress?.(item.page);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+  return out;
+}
+
 /* ---------------- vision：交给多模态模型 ---------------- */
 
 async function ocrVision({ pdf, from, to, llm, onProgress }) {
@@ -154,7 +202,10 @@ async function ocrVision({ pdf, from, to, llm, onProgress }) {
 
 export async function resolveBackend(llm) {
   const want = (process.env.OCR_BACKEND || 'auto').toLowerCase();
+  const hasCmd = Boolean(commandTemplate());
+  if (want === 'command') return hasCmd ? 'command' : null;
   if (want === 'local' || want === 'vision') return want;
+  if (hasCmd) return 'command';
   // auto：有独立视觉模型就用它（比本机 OCR 准，尤其公式/表格），否则退回本机
   if (ocrVisionClient()?.supportsVision) return 'vision';
   if (await localAvailable()) return 'local';
@@ -167,7 +218,13 @@ export async function backendStatus(llm) {
   const localOk = await localAvailable();
   const visionOk = Boolean(ocrVisionClient()?.supportsVision || llm?.supportsVision);
   const chosen = await resolveBackend(llm);
-  return { chosen, localAvailable: localOk, visionAvailable: visionOk, preferred: (process.env.OCR_BACKEND || 'auto').toLowerCase() };
+  return {
+    chosen,
+    localAvailable: localOk,
+    visionAvailable: visionOk,
+    commandAvailable: Boolean(commandTemplate()),
+    preferred: (process.env.OCR_BACKEND || 'auto').toLowerCase(),
+  };
 }
 
 /** OCR 实际使用的客户端：独立视觉模型优先，否则用主模型。 */
@@ -197,9 +254,11 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
   }
 
   const body =
-    backend === 'local'
-      ? await ocrLocal({ pdf, from, to, onProgress })
-      : await ocrVision({ pdf, from, to, llm: client, onProgress });
+    backend === 'command'
+      ? await ocrCommand({ pdf, from, to, onProgress })
+      : backend === 'local'
+        ? await ocrLocal({ pdf, from, to, onProgress })
+        : await ocrVision({ pdf, from, to, llm: client, onProgress });
 
   const out = pdf.replace(/\.pdf$/i, '') + '.ocr.md';
   const prev = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
@@ -213,7 +272,7 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
   const sorted = [...map.entries()].sort((a, b) => a[0] - b[0]);
   const header =
     `# OCR 文本（${path.basename(pdf)}）\n\n` +
-    `> 由${backend === 'local' ? '本机 OCR' : '多模态模型'}识别（本次 ${from}–${to} 页，共 ${total} 页），` +
+    `> 由${backend === 'local' ? '本机 OCR' : backend === 'command' ? '自定义 OCR 命令' : '多模态模型'}识别（本次 ${from}–${to} 页，共 ${total} 页），` +
     `可能有错字，引用前请核对原文。\n`;
   fs.writeFileSync(out, header + sorted.map(([p, t]) => `\n## 第 ${p} 页\n\n${t}\n`).join(''));
 

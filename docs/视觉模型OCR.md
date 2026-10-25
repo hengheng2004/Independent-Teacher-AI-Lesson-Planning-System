@@ -132,6 +132,43 @@ node scripts/ocr.mjs regression-analysis lec1.pdf 1-10
 
 ---
 
+## 七点五、接入你自己的本地 OCR
+
+如果你机器上有别的 OCR（PaddleOCR、RapidOCR、ABBYY、公司内部工具……），不用改代码，配一条命令即可：
+
+```
+设置 → OCR 方式 → 自定义命令
+或 .env：OCR_COMMAND=...
+```
+
+命令要求：**对一张图片输出文字到 stdout**。可用占位符：
+
+| 占位符 | 含义 |
+| --- | --- |
+| `{img}` | 该页渲染出的 JPEG 路径 |
+| `{page}` | 页码 |
+| `{pdf}` | 原始 PDF 路径 |
+| `{from}` `{to}` | 本次页码范围 |
+
+例子：
+
+```bash
+# RapidOCR
+OCR_COMMAND=python3 -m rapidocr_onnxruntime --img {img}
+
+# tesseract（自己指定语言包）
+OCR_COMMAND=tesseract {img} stdout -l chi_sim+eng
+
+# 自己的脚本
+OCR_COMMAND=/usr/local/bin/my-ocr --image {img} --lang zh
+```
+
+注意：
+
+- 命令在**你的机器上执行**，等于给了它和你同等的权限——只填你信任的命令
+- 单页失败（非 0 退出码）会让整次 OCR 报错，并带上 stderr 前 200 字
+- 页面渲染由系统负责（PDFium），你只管"图 → 文字"
+
 ## 八、平台差异
 
 **Windows：只支持视觉模型 OCR。**
