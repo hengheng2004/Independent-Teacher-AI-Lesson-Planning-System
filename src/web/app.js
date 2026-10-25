@@ -809,34 +809,6 @@ async function renderPrep(id, chapterKey) {
   };
   head.appendChild(reviewBtn);
 
-  // 输出上限：可在备课界面直接调，旁边给出预估能写多少字
-  const prepInfo = state.prep || { maxTokens: 32000, charsPerToken: 1.6, reasoning: false };
-  const capLabel = el('span', 'muted small');
-  const capBtn = el('button', 'small', '调整');
-  const renderCap = () => {
-    const budget = state.prepBudget || prepInfo.maxTokens;
-    const chars = Math.round(budget * (prepInfo.charsPerToken || 1.6));
-    const human = chars >= 10000 ? `${(chars / 10000).toFixed(1)} 万字` : `${chars} 字`;
-    capLabel.textContent = `上限 ${budget} tokens · 预估可写 ≈ ${human}${prepInfo.reasoning ? '（推理模型约一半）' : ''}`;
-  };
-  capBtn.onclick = async () => {
-    const cur = state.prepBudget || prepInfo.maxTokens;
-    const v = prompt(`备课输出上限（tokens，1000–32000）\n\n只是上限，不写满不额外花钱。`, String(cur));
-    if (v === null) return;
-    const n = Math.max(1000, Math.min(32000, Math.round(Number(v) || cur)));
-    state.prepBudget = n;
-    renderCap();
-    try {
-      await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify({ prep: { maxTokens: String(n) } }) });
-      toast(`输出上限已设为 ${n} tokens`);
-    } catch (e) {
-      toast(`本次按 ${n} 执行（保存配置失败：${e.message}）`);
-    }
-  };
-  renderCap();
-  head.appendChild(capLabel);
-  head.appendChild(capBtn);
-
   m.appendChild(head);
 
   const wrap = el('div', 'prep');
@@ -872,8 +844,35 @@ async function renderPrep(id, chapterKey) {
   };
   actions.appendChild(send);
   actions.appendChild(newBtn);
+
+  // 输出上限 = 总 token 预算；能写多少字 ≈ token × 平均每 token 字数（1.6）
+  const prepInfo = state.prep || { maxTokens: 32000, charsPerToken: 1.6 };
+  const capLabel = el('span', 'muted small');
+  capLabel.style.cssText = 'cursor:pointer;text-decoration:underline dotted;white-space:nowrap;font-size:11px';
+  capLabel.title = '点击调整输出上限';
+  const renderCap = () => {
+    const budget = state.prepBudget || prepInfo.maxTokens || 32000;
+    const chars = Math.round(budget * (prepInfo.charsPerToken || 1.6));
+    capLabel.textContent = `${budget} tokens ≈ 最多 ${chars.toLocaleString('zh-CN')} 字`;
+  };
+  capLabel.onclick = async () => {
+    const cur = state.prepBudget || prepInfo.maxTokens || 32000;
+    const v = prompt('输出上限（tokens，1000–32000）\n\n这只是上限：不写满不额外花钱。', String(cur));
+    if (v === null) return;
+    const n = Math.max(1000, Math.min(32000, Math.round(Number(v) || cur)));
+    state.prepBudget = n;
+    renderCap();
+    try {
+      await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify({ prep: { maxTokens: String(n) } }) });
+      toast(`输出上限已设为 ${n} tokens`);
+    } catch (e) {
+      toast(`本次按 ${n} 执行（保存失败：${e.message}）`);
+    }
+  };
+  renderCap();
+  actions.appendChild(capLabel);
   actions.appendChild(el('span', 'spacer'));
-  actions.appendChild(el('span', 'muted small', 'Ctrl+Enter 发送'));
+  actions.appendChild(el('span', 'muted small', 'Ctrl+↵'));
   composer.appendChild(ta);
   composer.appendChild(actions);
   mid.appendChild(composer);
