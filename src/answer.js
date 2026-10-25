@@ -108,6 +108,7 @@ export function buildSystemPrompt(course, kind = 'knowledge') {
     '## 通用风格',
     '- 用中文，数学用 $...$ 或 $$...$$。段落短，多用小标题和编号。',
     '- 学生说「卡住了」时，先定位他可能错的那一步，不要重讲整章。',
+    '- 如果给了【上一轮对话】，学生说「这一步」「第四步」「那个公式」通常指上一轮的内容：接着讲，不要让他重新提供材料。',
     '- 学生情绪明显焦虑时，先用一句话安抚，再回到内容。',
     '',
     '## 边界',
@@ -197,16 +198,37 @@ export function renderAnswer(rawText, packsUsed, { allowUncited = false } = {}) 
   return { html, text, citations, status, invalid: [...invalid] };
 }
 
-export async function answerQuestion({ course, packs, question, kind = 'knowledge', llm }) {
+export async function answerQuestion({ course, packs, question, kind = 'knowledge', llm, history = [] }) {
   const q = String(question || '').trim().slice(0, MAX_QUESTION_CHARS);
   if (!q) throw new Error('问题是空的');
 
   const k = KIND_SPEC[kind] ? kind : 'knowledge';
   const spec = KIND_SPEC[k];
   const started = Date.now();
+  // 只有「追问」才把上一轮问题拼进检索词；否则无关的新问题会被旧话题带偏。
+  const ANAPHORA = /(第[一二三四五六七八九十\d]+步|这一步|那一步|这个公式|那个公式|上面|刚才|再说|继续|为什么成立|怎么来的)/;
+  const prev = history.length ? history[history.length - 1] : null;
+  const isFollowUp = Boolean(prev) && (ANAPHORA.test(q) || q.length <= 12);
+  const query = isFollowUp ? `${q} ${prev.question}` : q;
   // 有向量就走混合检索；没有向量或模型加载失败会自动退回纯词法
-  const retrieval = await retrieveForPrompt(packs, q, { budget: 14000, maxBlocks: spec.blocks });
+  const retrieval = await retrieveForPrompt(packs, query, { budget: 14000, maxBlocks: spec.blocks });
   const { packsUsed } = retrieval;
+
+  // 把上一轮引用过的块补回来：否则学生追问上一轮的某一步时，
+  // 那段材料不在本次上下文里，引用会被判无效，模型只能说「找不到资料」。
+  const already = new Set(packsUsed.flatMap((p) => p.blocks.map((bl) => bl.id)));
+  for (const h of isFollowUp ? history : []) {
+    for (const c of h.citations || []) {
+      if (already.has(c.id)) continue;
+      for (const pack of packs) {
+        const bl = [...pack.blocks, ...pack.reserved].find((b) => b.id === c.id);
+        if (bl && packsUsed.length < spec.blocks + 6) {
+          packsUsed.push({ pack, blocks: [bl], reserved: [] , fromPrev: true });
+          already.add(c.id);
+        }
+      }
+    }
+  }
 
   if (!packsUsed.length) {
     return {
@@ -225,6 +247,14 @@ export async function answerQuestion({ course, packs, question, kind = 'knowledg
   }
 
   const system = buildSystemPrompt(course, k);
+  const historyBlock = history.length
+    ? [
+        '【上一轮对话】学生可能在追问这里的某一步或某个公式；直接接着讲，不要说没有资料。',
+        ...history.map((h, i) => `（${i + 1}）学生：${h.question}\n助教：${String(h.answer || '').slice(0, 600)}`),
+        '',
+      ].join('\n')
+    : '';
+
   const user = [
     '【讲义摘录】只能依据以下内容回答；引用时写块编号。',
     renderContext(packsUsed),
@@ -232,6 +262,7 @@ export async function answerQuestion({ course, packs, question, kind = 'knowledg
     '【本讲目录】',
     packsUsed.map((p) => p.pack.toc.join('\n')).join('\n'),
     '',
+    historyBlock,
     `【本次任务】${KIND_LABEL[k]}：${spec.goal}`,
     '',
     `【学生提问】${q}`,

@@ -312,6 +312,28 @@ export function openStore() {
     },
 
     // ---- 问答 ----
+    /** 最近几轮问答，用于给追问提供上下文。 */
+    recent(student, courseId, limit = 2) {
+      return db
+        .prepare(
+          `select id, question, answer, citations, status, mode, created_at
+           from questions
+           where student = ? and course_id = ? and status in ('answered','extended')
+           order by id desc limit ?`,
+        )
+        .all(student, courseId, limit)
+        .map((r) => ({
+          ...r,
+          citations: (() => {
+            try {
+              return JSON.parse(r.citations || '[]');
+            } catch {
+              return [];
+            }
+          })(),
+        }))
+        .reverse();
+    },
     record(q) {
       const info = db
         .prepare(

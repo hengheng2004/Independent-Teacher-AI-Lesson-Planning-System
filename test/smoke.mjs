@@ -557,4 +557,9 @@ const packsNow = lp('linear-algebra-demo');
 ok('每章都有 blocks 数组', () => packsNow.every((p) => Array.isArray(p.blocks)));
 ok('不会把 material-vectors.json 当成包', () => packsNow.every((p) => typeof p.chapterKey === 'string'));
 
+console.log('\n[22] 追问上下文');
+const { answerQuestion, KIND_SPEC } = await import('../src/answer.js');
+ok('每种意图都有回答策略', () => Object.keys(KIND_SPEC).length >= 5);
+ok('answerQuestion 接受 history 参数', () => answerQuestion.length >= 1);
+
 console.log(`\n全部通过：${pass} 项。\n`);

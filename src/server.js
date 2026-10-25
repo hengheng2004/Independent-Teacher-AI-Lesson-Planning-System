@@ -904,7 +904,16 @@ const server = http.createServer(async (req, res) => {
         ? { kind: forced, confidence: 1, source: 'user', signals: ['学生指定'] }
         : await classifyIntent({ question, llm });
 
-      const result = await answerQuestion({ course, packs: chosen, question, kind: intent.kind, llm });
+      // 带上最近两轮问答：学生追问「第四步那个公式」时才有上下文
+      const history = store.recent(student.name, course.id, 2);
+      const result = await answerQuestion({
+        course,
+        packs: chosen,
+        question,
+        kind: intent.kind,
+        llm,
+        history,
+      });
 
       const id = store.record({
         courseId: course.id,
