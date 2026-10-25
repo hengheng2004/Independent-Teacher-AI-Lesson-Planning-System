@@ -1033,6 +1033,19 @@ async function sendMessage() {
           bb.textContent = raw.replace(/```[a-zA-Z]*\s+path=[^\n]+\n[\s\S]*?```/g, '\n（已生成文件，见右侧）\n');
         } else if (ev === 'done') {
           bb.textContent = data.text || '（已生成文件，见右侧）';
+          if (data.truncatedByModel) {
+            const warn = el('div', 'notice bad');
+            warn.style.marginTop = '8px';
+            warn.textContent =
+              '模型输出被截断（推理型模型会把预算花在思考上），这次可能没生成完整文件。建议在设置里把聊天模型换成 deepseek-chat。';
+            bubble.appendChild(warn);
+          }
+          if (!(data.drafts || []).length && !data.truncatedByModel) {
+            const hint = el('div', 'muted small');
+            hint.style.marginTop = '6px';
+            hint.textContent = '这次没有生成文件。可以让它「按第 X 章写教师版讲义」，或勾选左侧材料再试。';
+            bubble.appendChild(hint);
+          }
           state.session.drafts = data.drafts || [];
           renderDrafts(data.drafts || []);
         } else if (ev === 'error') {

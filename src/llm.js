@@ -186,6 +186,7 @@ export function createLLM(env = process.env) {
       }
 
       let acc = '';
+      let finishReason = '';
       let buffered = '';
       const decoder = new TextDecoder();
       for await (const chunk of res.body) {
@@ -199,6 +200,7 @@ export function createLLM(env = process.env) {
           if (!payload || payload === '[DONE]') continue;
           try {
             const j = JSON.parse(payload);
+            if (j.choices?.[0]?.finish_reason) finishReason = j.choices[0].finish_reason;
             const delta = j.choices?.[0]?.delta?.content || '';
             if (delta) {
               acc += delta;
@@ -209,7 +211,13 @@ export function createLLM(env = process.env) {
           }
         }
       }
-      return { text: acc, streamed: true, usage: {} };
+      if (!acc.trim()) {
+        throw new Error(
+          `模型「${useModel}」输出为空${finishReason === 'length' ? '（预算被推理占满）' : ''}。` +
+            '推理型模型请换 deepseek-chat，或把输出上限调大。',
+        );
+      }
+      return { text: acc, streamed: true, finishReason, usage: {} };
     },
   };
 }

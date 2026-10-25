@@ -710,6 +710,7 @@ async function handleTeacher(req, res, url, p) {
       });
 
       let full = '';
+      let finishReason = '';
       try {
         const r = await llm.chat({
           messages,
@@ -722,6 +723,7 @@ async function handleTeacher(req, res, url, p) {
             sseSend(res, 'delta', { text: d });
           },
         });
+        finishReason = r.finishReason || '';
         if (!full) full = r.text;
       } catch (e) {
         sseSend(res, 'error', { error: e.message });
@@ -731,8 +733,10 @@ async function handleTeacher(req, res, url, p) {
 
       store.addMessage(sessionId, 'assistant', full);
       const drafts = parseDrafts(full);
+      const truncatedByModel = finishReason === 'length';
       sseSend(res, 'done', {
         sessionId,
+        truncatedByModel,
         text: stripDrafts(full) || full.slice(0, 2000),
         drafts: drafts.map((d) => {
           let before = '';
