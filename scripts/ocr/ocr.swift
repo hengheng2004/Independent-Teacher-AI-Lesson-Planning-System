@@ -7,6 +7,17 @@ import Vision
 import AppKit
 
 let args = CommandLine.arguments
+
+// 只问页数：ocr <in.pdf> --count
+// 不用 mdls —— 新建的文件 Spotlight 往往还没索引，会返回空。
+if args.count >= 3 && args[2] == "--count" {
+    if let doc = PDFDocument(url: URL(fileURLWithPath: args[1])) {
+        print(doc.pageCount)
+        exit(0)
+    }
+    exit(2)
+}
+
 guard args.count >= 5 else {
     FileHandle.standardError.write("用法: ocr <in.pdf> <out.md> <fromPage> <toPage>\n".data(using: .utf8)!)
     exit(1)

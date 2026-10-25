@@ -44,7 +44,21 @@ export function pagesFromText(text) {
   return { from: Math.min(a, b), to: Math.max(a, b) };
 }
 
-function pdfPages(pdf) {
+async function pdfPages(pdf) {
+  // 优先问 Swift 二进制（PDFKit），它不依赖 Spotlight 索引
+  if (process.platform === 'darwin') {
+    try {
+      await compile(OCR_SWIFT, OCR_BIN);
+      const n = await new Promise((resolve) => {
+        const p = spawn(OCR_BIN, [pdf, '--count']);
+        let out = '';
+        p.stdout.on('data', (d) => (out += d));
+        p.on('exit', () => resolve(Number(out.trim())));
+      });
+      if (Number.isFinite(n) && n > 0) return n;
+    } catch {}
+  }
+  // 兜底：mdls
   return new Promise((resolve) => {
     const p = spawn('mdls', ['-raw', '-name', 'kMDItemNumberOfPages', pdf]);
     let out = '';

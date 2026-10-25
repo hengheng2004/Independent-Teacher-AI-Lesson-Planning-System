@@ -53,7 +53,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 <div class="layout">
   <nav class="toc">
     <strong>目录</strong>
-    <a href="#一-它解决什么问题">一、它解决什么问题</a><a href="#二-七个核心特色">二、七个核心特色</a><a href="#三-界面预览">三、界面预览</a><a href="#四-系统要求">四、系统要求</a><a href="#五-五分钟跑起来">五、五分钟跑起来</a><a href="#六-配置文件详解">六、配置文件详解</a><a href="#七-打包与部署">七、打包与部署</a><a href="#八-三种典型部署">八、三种典型部署</a><a href="#九-日常操作">九、日常操作</a><a href="#十-学生怎么用">十、学生怎么用</a><a href="#十一-备份与迁移">十一、备份与迁移</a><a href="#十二-故障排查">十二、故障排查</a><a href="#十三-隐私与安全">十三、隐私与安全</a><a href="#十四-许可">十四、许可</a>
+    <a href="#一-它解决什么问题">一、它解决什么问题</a><a href="#二-七个核心特色">二、七个核心特色</a><a href="#三-界面预览">三、界面预览</a><a href="#四-系统要求">四、系统要求</a><a href="#五-五分钟跑起来">五、五分钟跑起来</a><a href="#六-配置文件详解">六、配置文件详解</a><a href="#七-打包与部署">七、打包与部署</a><a href="#八-三种典型部署">八、三种典型部署</a><a href="#九-索引是何时更新的">九、索引是何时更新的</a><a href="#十-日常操作">十、日常操作</a><a href="#十一-学生怎么用">十一、学生怎么用</a><a href="#十二-备份与迁移">十二、备份与迁移</a><a href="#十三-故障排查">十三、故障排查</a><a href="#十四-隐私与安全">十四、隐私与安全</a><a href="#十五-许可">十五、许可</a>
   </nav>
   <article>
 <h1>独立教师 AI 工作台 · 配置指南</h1>
@@ -229,7 +229,32 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <p>学生和你同一个 WiFi 时最稳：</p>
 <pre class="code lang-bash"><code>ipconfig getifaddr en0        # macOS 取本机 IP
 # 学生打开 http://10.x.x.x:8787</code></pre>
-<h2 id="九-日常操作">九、日常操作</h2>
+<h2 id="九-索引是何时更新的">九、索引是何时更新的</h2>
+<p>一句话：<strong>改了什么就重建什么，粒度为&quot;章&quot;。</strong> 但不同动作的自动化程度不一样，这张表是准确的：</p>
+<div class="table-wrap"><table><thead><tr>
+<th>你做的操作</th><th>索引会自动更新吗</th><th>走什么</th>
+</tr></thead><tbody>
+<tr><td>网页上传 <code>.md</code> / <code>.txt</code></td><td>✅ 立刻</td><td>上传接口里直接重建（含向量）</td></tr>
+<tr><td>网页上传扫描版 PDF</td><td>❌ 只存档</td><td>PDF 没有文字层，任何提取器都取不到</td></tr>
+<tr><td>对 PDF 点「OCR 识别」</td><td>✅ 识别完自动挂到该章并重建</td><td>OCR 完成 → 写入 <code>xxx.ocr.md</code> → 挂进章节 sources → 重建</td></tr>
+<tr><td>网页删除材料</td><td>✅ 立刻</td><td>删除接口里重建</td></tr>
+<tr><td>工作台里「应用」AI 生成的文件</td><td>✅ 立刻</td><td>写入后重建</td></tr>
+<tr><td>编辑课程（改章节 / 材料归属）</td><td>✅ 保存后</td><td>保存接口里重建</td></tr>
+<tr><td>用编辑器直接改 <code>courses/</code> 里的文件</td><td>⚠️ 只有 watcher 在跑时</td><td><code>npm run watch</code> 或绿色包（启动时自带）</td></tr>
+<tr><td>换向量模型</td><td>✅ 下次建索引时</td><td>模型名与讲义哈希一起校验，不一致就整章重算</td></tr>
+</tbody></table></div>
+<p><strong>重建的分寸</strong></p>
+<ul><li>知识包（切块）：每次全量重切，毫秒级，不心疼</li><li>向量：按章比对 <code>packVersion</code>（该章所有源文件的 SHA-256），<strong>没变的章直接复用</strong>，只重算改过的章</li><li>单章约 0.3 秒；没改动时重建耗时 1 毫秒</li></ul>
+<p><strong>两级检索，各自更新</strong></p>
+<div class="table-wrap"><table><thead><tr>
+<th></th><th>学生答疑</th><th>备课对话</th>
+</tr></thead><tbody>
+<tr><td>索引对象</td><td>章节 <code>sources</code> 里的文件</td><td>课程根目录所有可读文字（含 OCR）</td></tr>
+<tr><td>检索方式</td><td>词法 + 向量，RRF 融合</td><td>词法 + 向量，RRF 融合</td></tr>
+<tr><td>更新时机</td><td>上面那张表（显式重建）</td><td>每次提问时按文件 mtime 惰性刷新</td></tr>
+</tbody></table></div>
+<p>所以给备课补材料不用点重建——下一次对话就生效；但要让<strong>学生</strong>也能检索到，必须挂进章节（这也是 OCR 完成后自动挂章节的原因）。</p>
+<h2 id="十-日常操作">十、日常操作</h2>
 <div class="table-wrap"><table><thead><tr>
 <th>我想……</th><th>怎么做</th>
 </tr></thead><tbody>
@@ -243,7 +268,7 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <tr><td>看检索质量</td><td><code>npm run eval</code></td></tr>
 <tr><td>自测</td><td><code>npm test</code>（127 项模块测试 + 36 项接口测试）</td></tr>
 </tbody></table></div>
-<h2 id="十-学生怎么用">十、学生怎么用</h2>
+<h2 id="十一-学生怎么用">十一、学生怎么用</h2>
 <p>一句话：<strong>建号发码，学生打开网址输码就能问。</strong> 但&quot;能进去&quot;和&quot;能答上&quot;是两件事，发码前先对一遍下面四条。</p>
 <h3>9.1 你这边（两步）</h3>
 <pre class="code"><code>学生 → 新增学生 → 填名字 + 选课程 + 设额度 → 屏幕显示一次访问码
@@ -289,7 +314,7 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <tr><td>额度用完</td><td>学生行「额度」，可单独调这一单的次数</td></tr>
 <tr><td>想换课</td><td>学生行「加课」，不用换码</td></tr>
 </tbody></table></div>
-<h2 id="十一-备份与迁移">十一、备份与迁移</h2>
+<h2 id="十二-备份与迁移">十二、备份与迁移</h2>
 <p><strong>必须备份</strong>（这些丢了就真丢了）：</p>
 <pre class="code"><code>config/          课程配置 + 学生码哈希
 courses/         你的材料与生成的讲义
@@ -308,7 +333,7 @@ npm install
 node scripts/build-packs.mjs &amp;&amp; node scripts/build-vectors.mjs
 node src/server.js</code></pre>
 <p><strong>学生码不会失效</strong>：码的哈希在 <code>config/students.json</code> 和数据里，一起搬走就行。</p>
-<h2 id="十二-故障排查">十二、故障排查</h2>
+<h2 id="十三-故障排查">十三、故障排查</h2>
 <div class="table-wrap"><table><thead><tr>
 <th>现象</th><th>先查</th>
 </tr></thead><tbody>
@@ -322,10 +347,10 @@ node src/server.js</code></pre>
 <tr><td>隧道 1033</td><td>关掉 TUN / 全局代理再试</td></tr>
 <tr><td>端口被占用</td><td>`lsof -ti :8787 \</td><td>xargs kill`</td></tr>
 </tbody></table></div>
-<h2 id="十三-隐私与安全">十三、隐私与安全</h2>
+<h2 id="十四-隐私与安全">十四、隐私与安全</h2>
 <ul><li>学生提问、画像、访问码只写本地磁盘；除模型厂商外不上传任何第三方</li><li>发给模型的只有「讲义摘录 + 这一条提问」，不含学生姓名、历史对话</li><li>访问码只存 SHA-256，明文只在你生成时显示一次</li><li>教师令牌走 HttpOnly cookie，连续 5 次错误锁 60 秒</li><li><code>.gitignore</code> 已排除 <code>.env</code>、<code>data/</code>、<code>packs/</code></li></ul>
 <p><strong>你仍需要自己把控</strong>：学生姓名属于个人信息，公开仓库或把项目发给别人之前，检查 <code>students/</code>、<code>courses/</code>、<code>config/students.json</code> 里有没有真实人名。</p>
-<h2 id="十四-许可">十四、许可</h2>
+<h2 id="十五-许可">十五、许可</h2>
 <p>MIT License，可自由用于商业教学。第三方资源 KaTeX 亦为 MIT。</p>
     <footer>本文档由 docs/配置指南.md 生成于 2026-10-25。改内容请改 Markdown，然后运行 <code>npm run docs</code>。</footer>
   </article>

@@ -209,6 +209,29 @@ export function saveMaterial(courseId, originalName, buffer) {
   return { name, indexable: isIndexable(name), size: buffer.length };
 }
 
+/**
+ * 把某个文件挂进章节的 sources（已在就别重复加）。
+ * 优先挂到引用了同源 PDF 的章节，其次第一个空章，最后第一章。
+ */
+export function attachToChapter(courseId, fileName, { nearFile } = {}) {
+  const cfg = readConfig();
+  const c = cfg.courses.find((x) => x.id === courseId);
+  if (!c) throw new Error('课程不存在');
+  const chapters = c.chapters || [];
+  const has = (ch) => (ch.sources || []).includes(fileName);
+  if (chapters.some(has)) return { changed: false, chapter: chapters.find(has).key };
+
+  const near = nearFile
+    ? chapters.find((ch) => (ch.sources || []).some((s) => s.replace(/\.pdf$/i, '') === nearFile.replace(/\.pdf$/i, '')))
+    : null;
+  const target = near || chapters.find((ch) => !(ch.sources || []).length) || chapters[0];
+  if (!target) return { changed: false, chapter: null };
+
+  target.sources = [...(target.sources || []), fileName];
+  writeConfig(cfg);
+  return { changed: true, chapter: target.key };
+}
+
 export function deleteMaterial(courseId, name) {
   const abs = resolveInCourse(courseId, name);
   if (!fs.existsSync(abs)) throw new Error('文件不存在');

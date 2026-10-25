@@ -27,6 +27,7 @@ import {
   listCourses,
   listMaterials,
   readCourseFile,
+  attachToChapter,
   saveMaterial,
   updateCourse,
   writeCourseFile,
@@ -34,7 +35,7 @@ import {
 import { buildAttachmentBlock, buildSystemPrompt, diffLines, parseDrafts, stripDrafts } from './agent.js';
 import { buildVectorsFor } from './vectors.js';
 import { ocrPdf } from './ocr.js';
-import { renderMaterialBlock, searchMaterials } from './materialindex.js';
+import { renderMaterialBlock, searchMaterialsSmart } from './materialindex.js';
 import { pagesFromText } from './ocr.js';
 
 const ocrJobs = new Map();
@@ -420,8 +421,24 @@ async function handleTeacher(req, res, url, p) {
           if (job) job.progress = meta ? `${meta.done}/${meta.total} 页` : `第 ${page} 页`;
         },
       })
-        .then((r) => {
-          ocrJobs.set(jobId, { status: 'done', progress: '完成', out: r.out, backend: r.backend, pages: r.pages });
+        .then(async (r) => {
+          // OCR 产物默认只有老师能看到（备课检索按目录扫）。
+          // 要让学生也能检索，必须挂进章节 sources 并重建，否则学生端永远搜不到。
+          let attached = null;
+          try {
+            attached = attachToChapter(b.courseId, r.out, { nearFile: b.name });
+            if (attached.changed) await rebuildCourse(b.courseId);
+          } catch {
+            /* 挂载失败不影响 OCR 结果本身 */
+          }
+          ocrJobs.set(jobId, {
+            status: 'done',
+            progress: '完成',
+            out: r.out,
+            backend: r.backend,
+            pages: r.pages,
+            attached,
+          });
         })
         .catch((e) => {
           ocrJobs.set(jobId, { status: 'error', progress: e.message, error: e.message });
@@ -573,7 +590,7 @@ async function handleTeacher(req, res, url, p) {
 
 
       // 备课端 RAG：按这次提问（含上一轮）自动从课程材料里挑相关段落，不必勾选整份文件
-      const retrieved = searchMaterials(
+      const retrieved = await searchMaterialsSmart(
         course.id,
         `${b.message} ${store.messages(sessionId, 4).slice(-3).map((m) => m.content).join(' ')}`,
         { k: 6, pages: pagesFromText(b.message) },
@@ -609,6 +626,7 @@ async function handleTeacher(req, res, url, p) {
         truncated: attach.truncated,
         retrieved: retrieved.blocks.length,
         materialTotal: retrieved.total,
+        retrieveMode: retrieved.mode,
       });
 
       let full = '';

@@ -149,6 +149,10 @@ fi
 echo "正在启动（端口 \${PORT}）…"
 ./runtime/node src/server.js > .runtime.log 2>&1 &
 SERVER_PID=$!
+
+# 文件监听：用编辑器直接改讲义也能自动重建（网页上传本来就会触发）
+./runtime/node scripts/watch.mjs >> .runtime-watch.log 2>&1 &
+WATCH_PID=$!
 echo $SERVER_PID > .runtime.pid
 
 # 等服务就绪
@@ -167,7 +171,7 @@ open "$URL" 2>/dev/null || echo "请手动打开上面的地址"
 
 echo
 echo "服务在运行（PID \${SERVER_PID}）。关掉这个窗口或按 Ctrl+C 停止。"
-trap 'kill $SERVER_PID 2>/dev/null; rm -f .runtime.pid' EXIT
+trap 'kill $SERVER_PID $WATCH_PID 2>/dev/null; rm -f .runtime.pid' EXIT
 wait $SERVER_PID
 `;
 

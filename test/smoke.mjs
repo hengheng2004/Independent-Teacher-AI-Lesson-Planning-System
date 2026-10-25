@@ -424,6 +424,12 @@ archiveCourse(TMP);
 ok('归档后课程从配置里消失', () => assert.ok(!listCourses().some((c) => c.id === TMP)));
 cleanupArchived(TMP);
 
+function attachCourseCleanup() {
+  if (getCourse('attach-test')) {
+    archiveCourse('attach-test');
+    cleanupArchived('attach-test');
+  }
+}
 function archiveCourseSafe(id) {
   if (getCourse(id)) {
     archiveCourse(id);
@@ -522,5 +528,22 @@ ok('内容没变时全部复用', () => v2.built === 0 && v2.reused === packsA.l
 const saved = loadVectors('linear-algebra-demo');
 ok('向量文件记录了模型名', () => typeof saved.model === 'string' && saved.model.length > 0);
 ok('每章记录 packVersion', () => Object.values(saved.chapters).every((c) => typeof c.packVersion === 'string'));
+
+console.log('\n[20] 材料挂章与备课混合检索');
+const { attachToChapter } = await import('../src/courses.js');
+attachCourseCleanup();
+const ac = createCourse({ id: 'attach-test', name: '挂章测试', chapters: [{ key: 'ch1', title: '第一章' }, { key: 'ch2', title: '第二章' }] });
+const a1 = attachToChapter('attach-test', '讲义.md');
+ok('空课程会把文件挂到第一章', () => a1.changed && a1.chapter === 'ch1');
+const a2 = attachToChapter('attach-test', '讲义.md');
+ok('已在章节里就不重复挂', () => !a2.changed);
+const a3 = attachToChapter('attach-test', 'lec1.ocr.md', { nearFile: 'lec1.pdf' });
+ok('按同名 PDF 归属挂章', () => a3.changed);
+attachCourseCleanup();
+
+const smart = await (await import('../src/materialindex.js')).searchMaterialsSmart;
+const hy = await smart('linear-algebra-demo', '线性无关', { k: 3 });
+ok('备课混合检索可用', () => hy.mode === 'hybrid' || hy.mode === 'lexical');
+ok('混合检索有结果', () => hy.blocks.length > 0);
 
 console.log(`\n全部通过：${pass} 项。\n`);
