@@ -34,3 +34,6 @@ courses/*
 !courses/linear-algebra-demo/**
 # 例外里再排一次构建产物（! 规则会覆盖前面的忽略）
 courses/linear-algebra-demo/助教/
+
+# 打包产物
+dist/

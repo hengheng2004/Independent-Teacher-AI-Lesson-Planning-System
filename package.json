@@ -26,7 +26,8 @@
     "add-student": "node scripts/add-student.mjs",
     "demo": "npm run build && node src/server.js",
     "watch": "node scripts/watch.mjs",
-    "docs": "node scripts/build-guide.mjs"
+    "docs": "node scripts/build-guide.mjs",
+    "pack": "node scripts/pack.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1"

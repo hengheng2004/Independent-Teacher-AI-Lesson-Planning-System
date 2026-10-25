@@ -1,0 +1,28 @@
+# 服务器上：/etc/systemd/system/teacher-ai.service
+# 启用：sudo systemctl daemon-reload && sudo systemctl enable --now teacher-ai
+# 日志：journalctl -u teacher-ai -f
+[Unit]
+Description=独立教师 AI 工作台
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=teacher
+WorkingDirectory=/opt/teacher-ai
+Environment=NODE_ENV=production
+# 只让本机的 Caddy/Nginx 访问；不要直接暴露给公网
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=3
+
+# 基本加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/teacher-ai/data /opt/teacher-ai/packs /opt/teacher-ai/courses /opt/teacher-ai/students /opt/teacher-ai/config
+
+[Install]
+WantedBy=multi-user.target

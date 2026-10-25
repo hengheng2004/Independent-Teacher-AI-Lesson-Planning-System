@@ -1,0 +1,20 @@
+# 自动申请并续期证书，反代到本机 8787
+# 装：https://caddyserver.com/docs/install
+# 用法：sudo cp deploy/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+#
+# 把 ai.example.com 换成你的域名，A 记录指向这台服务器
+
+ai.example.com {
+	encode gzip
+
+	# SSE（备课对话的流式输出）必须关掉缓冲
+	reverse_proxy 127.0.0.1:8787 {
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+	}
+}

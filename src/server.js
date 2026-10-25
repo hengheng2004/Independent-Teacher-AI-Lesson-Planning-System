@@ -1034,7 +1034,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
+// 默认只听本机；放到 VPS 上需要 HOST=0.0.0.0（配合 Nginx/Caddy 反代）
+server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
   console.log(`助教服务已启动  http://127.0.0.1:${PORT}`);
   console.log(`  模型提供商：${llm.provider}${llm.model ? `（${llm.model}）` : ''}`);
   console.log(`  课程数：${publicCourses().length}`);

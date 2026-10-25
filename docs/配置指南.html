@@ -53,7 +53,7 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 <div class="layout">
   <nav class="toc">
     <strong>目录</strong>
-    <a href="#一-它解决什么问题">一、它解决什么问题</a><a href="#二-七个核心特色">二、七个核心特色</a><a href="#三-界面预览">三、界面预览</a><a href="#四-系统要求">四、系统要求</a><a href="#五-五分钟跑起来">五、五分钟跑起来</a><a href="#六-配置文件详解">六、配置文件详解</a><a href="#七-三种典型部署">七、三种典型部署</a><a href="#八-日常操作">八、日常操作</a><a href="#九-学生怎么用">九、学生怎么用</a><a href="#十-备份与迁移">十、备份与迁移</a><a href="#十一-故障排查">十一、故障排查</a><a href="#十二-隐私与安全">十二、隐私与安全</a><a href="#十三-许可">十三、许可</a>
+    <a href="#一-它解决什么问题">一、它解决什么问题</a><a href="#二-七个核心特色">二、七个核心特色</a><a href="#三-界面预览">三、界面预览</a><a href="#四-系统要求">四、系统要求</a><a href="#五-五分钟跑起来">五、五分钟跑起来</a><a href="#六-配置文件详解">六、配置文件详解</a><a href="#七-打包与部署">七、打包与部署</a><a href="#八-三种典型部署">八、三种典型部署</a><a href="#九-日常操作">九、日常操作</a><a href="#十-学生怎么用">十、学生怎么用</a><a href="#十一-备份与迁移">十一、备份与迁移</a><a href="#十二-故障排查">十二、故障排查</a><a href="#十三-隐私与安全">十三、隐私与安全</a><a href="#十四-许可">十四、许可</a>
   </nav>
   <article>
 <h1>独立教师 AI 工作台 · 配置指南</h1>
@@ -201,7 +201,19 @@ data/                   SQLite、令牌、码表、模型、各类备份（不�
 packs/                  知识包与向量索引（可删可重建）</code></pre>
 <h3>6.4 agent 角色（可改）</h3>
 <p><code>agents/prep-agent.md</code> 和 <code>agents/review-agent.md</code> 是纯 Markdown，直接决定 AI 怎么写讲义、怎么写审查报告。想让它更严格、更啰嗦、换格式，改这两个文件即可，不用动代码。</p>
-<h2 id="七-三种典型部署">七、三种典型部署</h2>
+<h2 id="七-打包与部署">七、打包与部署</h2>
+<p>两种交付形态，按对方的技术水平选。</p>
+<h3>7.1 绿色包（对方双击即用）</h3>
+<pre class="code lang-bash"><code>npm run pack
+# → dist/独立教师AI工作台-&lt;版本&gt;-macOS-&lt;arch&gt;.zip（约 110 MB）</code></pre>
+<p>包里自带 Node 运行时、裁过的依赖、向量模型、示例课程、双击启动脚本。对方<strong>不需要装任何东西</strong>：解压 → 双击「启动.command」→ 自动建索引、起服务、开浏览器。</p>
+<p>细节：</p>
+<ul><li>依赖已裁掉其它平台二进制和浏览器版运行时（471 MB → 129 MB）</li><li>首次启动自动生成 <code>.env</code> 与登录令牌，并建好知识包与向量（约 1–2 秒）</li><li>端口被占用会自动往后找</li><li>目前只出 macOS 包；Windows 需要另做一份（依赖里 win32 二进制已裁，要还原）</li></ul>
+<h3>7.2 服务器部署（对方只收一个网址）</h3>
+<p>见 <a href="../deploy/README.md"><code>deploy/README.md</code></a>，含 systemd 单元、Caddy/Nginx 配置、数据迁移与备份脚本。</p>
+<p>关键两点：</p>
+<ul><li><code>.env</code> 里 <code>HOST=127.0.0.1</code>，只让反代访问，<strong>不要开 0.0.0.0</strong></li><li>反代必须关掉响应缓冲，否则备课对话的流式输出会憋到最后一次性出现</li></ul>
+<h2 id="八-三种典型部署">八、三种典型部署</h2>
 <h3>方案 A：本机 + 临时隧道（最快，适合试点）</h3>
 <pre class="code lang-bash"><code>./scripts/start.sh     # 起服务（同时拉起讲义监听）
 ./scripts/tunnel.sh    # 另开终端，拿公网链接</code></pre>
@@ -217,7 +229,7 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <p>学生和你同一个 WiFi 时最稳：</p>
 <pre class="code lang-bash"><code>ipconfig getifaddr en0        # macOS 取本机 IP
 # 学生打开 http://10.x.x.x:8787</code></pre>
-<h2 id="八-日常操作">八、日常操作</h2>
+<h2 id="九-日常操作">九、日常操作</h2>
 <div class="table-wrap"><table><thead><tr>
 <th>我想……</th><th>怎么做</th>
 </tr></thead><tbody>
@@ -231,7 +243,7 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <tr><td>看检索质量</td><td><code>npm run eval</code></td></tr>
 <tr><td>自测</td><td><code>npm test</code>（127 项模块测试 + 36 项接口测试）</td></tr>
 </tbody></table></div>
-<h2 id="九-学生怎么用">九、学生怎么用</h2>
+<h2 id="十-学生怎么用">十、学生怎么用</h2>
 <p>一句话：<strong>建号发码，学生打开网址输码就能问。</strong> 但&quot;能进去&quot;和&quot;能答上&quot;是两件事，发码前先对一遍下面四条。</p>
 <h3>9.1 你这边（两步）</h3>
 <pre class="code"><code>学生 → 新增学生 → 填名字 + 选课程 + 设额度 → 屏幕显示一次访问码
@@ -277,7 +289,7 @@ server.listen(PORT, '0.0.0.0', ...)</code></pre>
 <tr><td>额度用完</td><td>学生行「额度」，可单独调这一单的次数</td></tr>
 <tr><td>想换课</td><td>学生行「加课」，不用换码</td></tr>
 </tbody></table></div>
-<h2 id="十-备份与迁移">十、备份与迁移</h2>
+<h2 id="十一-备份与迁移">十一、备份与迁移</h2>
 <p><strong>必须备份</strong>（这些丢了就真丢了）：</p>
 <pre class="code"><code>config/          课程配置 + 学生码哈希
 courses/         你的材料与生成的讲义
@@ -296,7 +308,7 @@ npm install
 node scripts/build-packs.mjs &amp;&amp; node scripts/build-vectors.mjs
 node src/server.js</code></pre>
 <p><strong>学生码不会失效</strong>：码的哈希在 <code>config/students.json</code> 和数据里，一起搬走就行。</p>
-<h2 id="十一-故障排查">十一、故障排查</h2>
+<h2 id="十二-故障排查">十二、故障排查</h2>
 <div class="table-wrap"><table><thead><tr>
 <th>现象</th><th>先查</th>
 </tr></thead><tbody>
@@ -310,10 +322,10 @@ node src/server.js</code></pre>
 <tr><td>隧道 1033</td><td>关掉 TUN / 全局代理再试</td></tr>
 <tr><td>端口被占用</td><td>`lsof -ti :8787 \</td><td>xargs kill`</td></tr>
 </tbody></table></div>
-<h2 id="十二-隐私与安全">十二、隐私与安全</h2>
+<h2 id="十三-隐私与安全">十三、隐私与安全</h2>
 <ul><li>学生提问、画像、访问码只写本地磁盘；除模型厂商外不上传任何第三方</li><li>发给模型的只有「讲义摘录 + 这一条提问」，不含学生姓名、历史对话</li><li>访问码只存 SHA-256，明文只在你生成时显示一次</li><li>教师令牌走 HttpOnly cookie，连续 5 次错误锁 60 秒</li><li><code>.gitignore</code> 已排除 <code>.env</code>、<code>data/</code>、<code>packs/</code></li></ul>
 <p><strong>你仍需要自己把控</strong>：学生姓名属于个人信息，公开仓库或把项目发给别人之前，检查 <code>students/</code>、<code>courses/</code>、<code>config/students.json</code> 里有没有真实人名。</p>
-<h2 id="十三-许可">十三、许可</h2>
+<h2 id="十四-许可">十四、许可</h2>
 <p>MIT License，可自由用于商业教学。第三方资源 KaTeX 亦为 MIT。</p>
     <footer>本文档由 docs/配置指南.md 生成于 2026-10-25。改内容请改 Markdown，然后运行 <code>npm run docs</code>。</footer>
   </article>
