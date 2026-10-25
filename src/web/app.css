@@ -188,7 +188,9 @@ tr:hover td { background: #fbfaf8; }
 .md-body th, .md-body td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
 .md-body th { background: #fbfaf8; font-weight: 600; white-space: nowrap; }
 .md-body img { max-width: 100%; border-radius: 6px; }
-.md-body .katex-display { margin: 8px 0; }
+.md-body .katex-display { margin: 8px 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.md-body .katex-display > .katex { white-space: nowrap; }
+.md-body, .msg .bubble { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
 .msg .bubble .md-body { font-size: 13.5px; }
 .msg .bubble .md-body > :first-child { margin-top: 0; }
 .msg .bubble .md-body h2, .msg .bubble .md-body h3 { border-top: none; padding-top: 0; }

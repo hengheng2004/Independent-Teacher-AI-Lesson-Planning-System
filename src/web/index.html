@@ -41,7 +41,16 @@
     background:#fff;color:var(--muted);cursor:pointer;user-select:none}
   .chip[aria-pressed=true]{background:var(--accent-soft);border-color:#c9dccf;color:var(--accent);font-weight:500}
   .msg{margin:14px 0;display:flex;gap:10px}
-  .msg .bubble{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;max-width:100%}
+  .msg .bubble{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;max-width:100%;
+    overflow-wrap:anywhere;word-break:break-word;min-width:0}
+
+  /* 长公式 / 长矩阵在手机上会撑破气泡：让公式块自己横向滚动，而不是把布局顶出去 */
+  .msg .bubble .katex-display,
+  .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden;margin:.5em 0;
+    -webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .katex-display>.katex{white-space:nowrap}
+  .katex{max-width:100%}
+  img,video,canvas{max-width:100%;height:auto}
   .msg.me{justify-content:flex-end}
   .msg.me .bubble{background:var(--accent);color:#fff;border-color:var(--accent);border-bottom-right-radius:4px}
   .msg.ta .bubble{border-bottom-left-radius:4px}
@@ -140,7 +149,18 @@ const state = { code: localStorage.getItem('ta_code') || '', course: null, chapt
 function el(tag, cls, text){ const n=document.createElement(tag); if(cls) n.className=cls; if(text!=null) n.textContent=text; return n; }
 
 function tex(node){
-  if (window.__noKatex || !window.renderMathInElement) return;
+  if (window.__noKatex || !window.renderMathInElement){
+    // 公式组件没加载（网络被拦/缓存异常）时，别静默显示原始 $...$，给个明确提示
+    if (!window.__texWarned){
+      window.__texWarned = true;
+      const tip = document.createElement('div');
+      tip.className = 'badge warn';
+      tip.style.cssText = 'margin:8px 0;display:block';
+      tip.textContent = '公式渲染组件没加载成功，公式会显示成原始符号。请刷新页面（强制刷新）。';
+      document.querySelector('.wrap')?.prepend(tip);
+    }
+    return;
+  }
   try{
     renderMathInElement(node, {
       delimiters:[{left:'$$',right:'$$',display:true},{left:'\\[',right:'\\]',display:true},

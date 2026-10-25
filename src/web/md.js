@@ -128,7 +128,15 @@ export function stripDraftBlocks(text) {
 }
 
 function renderMath(root) {
-  if (!window.renderMathInElement) return;
+  if (!window.renderMathInElement) {
+    // 组件没加载时不要静默：公式会显示成原始 $...$，给使用者一个明确提示
+    if (typeof window !== 'undefined' && !window.__texWarned) {
+      window.__texWarned = true;
+      console.warn('[md] KaTeX 未加载，公式将显示为原始符号');
+      if (window.toast) window.toast('公式渲染组件没加载成功，公式会显示成原始符号；请强制刷新页面', 6000);
+    }
+    return;
+  }
   try {
     window.renderMathInElement(root, {
       delimiters: [

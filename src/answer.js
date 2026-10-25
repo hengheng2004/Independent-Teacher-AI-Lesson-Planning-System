@@ -250,7 +250,8 @@ export function renderAnswer(rawText, packsUsed, { allowUncited = false } = {}) 
     .replace(/@@NOEV@@/g, '<span class="noev">无依据</span>')
     .replace(/@@CITE(\d+)@@/g, '<sup class="cite" data-i="$1">[$1]</sup>')
     // 只认 **加粗** 和行首 #，不做完整 Markdown 渲染：数学里 * 等符号太多，过度解析会破坏公式
-    .replace(/\*\*([^*\n]{1,80})\*\*/g, '<strong>$1</strong>')
+    // 原来的 [^*]{1,80} 太严：稍长或含 * 的加粗就漏渲染，界面上直接露出 ** 符号
+    .replace(/\*\*([^\n]{1,300}?)\*\*/g, '<strong>$1</strong>')
     .replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/\n/g, '<br>');
