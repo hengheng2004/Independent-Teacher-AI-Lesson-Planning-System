@@ -10,7 +10,8 @@ const FILE = path.join(SERVICE_DIR, 'data/settings.json');
 
 const EMPTY = {
   chat: { provider: '', baseUrl: '', apiKey: '', model: '' },
-  review: { model: '' },
+  prep: { maxTokens: '' },
+  review: { model: '', maxTokens: '' },
   ocr: { backend: '', baseUrl: '', apiKey: '', model: '', command: '' },
 };
 
@@ -26,6 +27,7 @@ export function readSettings() {
     const j = JSON.parse(fs.readFileSync(FILE, 'utf8'));
     return {
       chat: cleanGroup(EMPTY.chat, j.chat),
+      prep: cleanGroup(EMPTY.prep, j.prep),
       review: cleanGroup(EMPTY.review, j.review),
       ocr: cleanGroup(EMPTY.ocr, j.ocr),
     };
@@ -37,7 +39,7 @@ export function readSettings() {
 export function writeSettings(patch) {
   const cur = readSettings();
   // 空字符串表示「不修改已有值」，避免界面上用掩码回显时把 key 抹掉
-  for (const group of ['chat', 'review', 'ocr']) {
+  for (const group of ['chat', 'prep', 'review', 'ocr']) {
     for (const [k, v] of Object.entries(patch?.[group] || {})) {
       // null 表示「清空这一项」，'' 表示「不修改」——两者要区分开，
       // 否则界面上没法把已经存下的 key 删掉。
@@ -78,7 +80,9 @@ export function applySettings(s = readSettings()) {
     else set('OPENAI_MODEL', s.chat.model);
   }
 
+  if (s.prep.maxTokens) set('PREP_MAX_TOKENS', String(s.prep.maxTokens));
   if (s.review.model) set('REVIEW_MODEL', s.review.model);
+  if (s.review.maxTokens) set('REVIEW_MAX_TOKENS', String(s.review.maxTokens));
   if (s.ocr.backend) set('OCR_BACKEND', s.ocr.backend);
   if (s.ocr.command) set('OCR_COMMAND', s.ocr.command);
   if (s.ocr.baseUrl) set('OCR_BASE_URL', s.ocr.baseUrl);
@@ -93,6 +97,7 @@ export function maskedSettings() {
   const mask = (k) => (k ? `••••${String(k).slice(-4)}` : '');
   return {
     chat: { ...s.chat, apiKey: mask(s.chat.apiKey) },
+    prep: { ...s.prep },
     review: { ...s.review },
     ocr: { ...s.ocr, apiKey: mask(s.ocr.apiKey) },
     file: path.relative(SERVICE_DIR, FILE),

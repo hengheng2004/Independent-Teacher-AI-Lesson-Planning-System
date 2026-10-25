@@ -714,7 +714,11 @@ async function handleTeacher(req, res, url, p) {
       try {
         const r = await llm.chat({
           messages,
-          maxTokens: b.agent === 'review' ? 6000 : 8000,
+          // 备课默认 32000：推理型模型会把一部分预算用在思考上（实测 flash 需 ~13k），8000/16000 都会被截断
+          maxTokens:
+            b.agent === 'review'
+              ? Number(process.env.REVIEW_MAX_TOKENS) || 6000
+              : Number(process.env.PREP_MAX_TOKENS) || 32000,
         // 审查可以单独指定模型（例如用更强的模型把质量关），没配就跟随聊天模型
         model: b.agent === 'review' ? process.env.REVIEW_MODEL || undefined : undefined,
           stream: true,

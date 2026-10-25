@@ -1549,6 +1549,14 @@ async function renderSettings() {
   field(form, '模型名', 'set-chat-model', st.chat.model, 'deepseek-chat / gpt-4o-mini …');
   keyField(form, 'API Key', 'set-chat-key', st.chat.apiKey, st.chat.apiKey ? '已设置，留空不改' : 'sk-…');
 
+  field(
+    form,
+    '备课输出上限',
+    'set-prep-max',
+    st.prep && st.prep.maxTokens,
+    '留空=32000（上限，不写满不花钱）。推理型模型会把预算花在思考上，太小会被截断',
+  );
+
   form.appendChild(el('h3', '', '审查 agent'));
   field(form, '模型名', 'set-review-model', st.review.model, `留空=跟随聊天模型（${data.effective.reviewModel || state.model || '当前模型'}）`);
 
@@ -1608,6 +1616,7 @@ async function renderSettings() {
           model: $('#set-chat-model').value.trim(),
           apiKey: maskGuard($('#set-chat-key').value),
         },
+        prep: { maxTokens: $('#set-prep-max').value.trim() },
         review: { model: $('#set-review-model').value.trim() },
         ocr: {
           backend: form.dataset.ocrBackend || '',
