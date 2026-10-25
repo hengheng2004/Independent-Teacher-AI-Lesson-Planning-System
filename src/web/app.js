@@ -359,6 +359,22 @@ async function renderCourse(id) {
   const edit = el('button', '', '编辑课程');
   edit.onclick = () => openEditCourse(id, tree);
   head.appendChild(edit);
+  const del = el('button', 'danger', '删除课程');
+  del.onclick = async () => {
+    if (!confirm(`删除「${c.name}」？\n\n课程会从列表移除，材料移到 courses/_archived/（不会真删）。\n重建索引后不能从界面恢复，需要手动搬回来。`)) return;
+    del.disabled = true;
+    try {
+      await api(`/api/teacher/courses/${id}`, { method: 'DELETE' });
+      toast(`已删除「${c.name}」，材料在 courses/_archived/`);
+      await refreshState();
+      location.hash = '#/courses';
+      renderCourses();
+    } catch (e) {
+      toast('删除失败：' + e.message);
+      del.disabled = false;
+    }
+  };
+  head.appendChild(del);
   const prep = el('button', 'primary', '开始备课');
   prep.onclick = () => (location.hash = `#/prep/${id}`);
   head.appendChild(prep);

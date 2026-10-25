@@ -48,40 +48,6 @@
         "学生讲义.md 只放学生版内容；教师版、答案、教材 PDF 一律不进学生端。",
         "换成自己的课：把 courses/<你的课程>/ 建好，改这里一条即可。"
       ]
-    },
-    {
-      "id": "win-test",
-      "name": "跨平台测试",
-      "school": "",
-      "teacher": "",
-      "enabled": true,
-      "quota": {
-        "daily": 20,
-        "monthly": 200
-      },
-      "policy": {
-        "defaultMode": "hint",
-        "allowFullSolution": true
-      },
-      "denyGlobs": [
-        "*备课*",
-        "*教师*",
-        "*答案*",
-        "*解答*",
-        "资料/*"
-      ],
-      "chapters": [
-        {
-          "key": "ch1",
-          "title": "第一章",
-          "sources": [
-            "lec1.ocr.md"
-          ]
-        }
-      ],
-      "references": [],
-      "errata": [],
-      "notes": []
     }
   ]
 }
