@@ -70,6 +70,70 @@ export const KIND_SPEC = {
   },
 };
 
+/**
+ * 用一般知识回答，但明确标注超出讲义、不编造出处、沿用讲义记号。
+ * 两条路径都会走到这里：检索不到任何块，或模型按规则回了「无依据」。
+ */
+async function generateOffSyllabus({ course, packs, q, k, llm, started, retrievalMode }) {
+  const spec = KIND_SPEC[k] || KIND_SPEC.knowledge;
+  const system = buildOffSyllabusPrompt(course);
+  const user = [
+    '【重要】下面只给讲义目录与样例写法作为「记号参考」，本次回答属于「超出讲义范围」。',
+    '',
+    '【本课程讲义目录与记号参考】只用来对齐术语、符号和讲法，不作为事实依据：',
+    buildStyleContext(packs),
+    '',
+    `【学生提问】${q}`,
+  ].join('\n');
+
+  const { text, usage } = await llm.complete({ system, user, maxTokens: spec.maxTokens });
+  const rendered2 = renderAnswer(text, [], { allowUncited: true });
+  return {
+    ...rendered2,
+    kind: k,
+    offSyllabus: true,
+    retrievalMode,
+    usage,
+    latencyMs: Date.now() - started,
+    chapters: [],
+    packVersions: {},
+    provider: llm.provider,
+    status: 'extended',
+  };
+}
+
+/**
+ * 超出讲义时给的「风格参考」：目录 + 每章一段样例，
+ * 只用于对齐符号与说法，不当作事实依据（提示词里已声明）。
+ */
+function buildStyleContext(packs) {
+  const parts = [];
+  for (const pack of packs.slice(0, 4)) {
+    parts.push(`《${pack.chapterTitle}》目录：${(pack.toc || []).slice(0, 8).join(' / ')}`);
+    const sample = (pack.blocks || [])[0];
+    if (sample) parts.push(`样例写法：[[${sample.id}]] ${String(sample.text).slice(0, 260)}`);
+  }
+  return parts.join('\n');
+}
+
+function buildOffSyllabusPrompt(course) {
+  return [
+    `你是「${course.name}」这门课的 AI 助教，服务对象是一名正在跟老师上课的学生。`,
+    '',
+    '## 本次情况：问题超出讲义范围',
+    '讲义里没有直接对应的内容。请用你自己的知识尽力解答，同时严格遵守：',
+    '',
+    '1. 开头一句话说明「这个点讲义里没有直接写，下面的解答超出讲义范围」。',
+    '2. 术语、符号、记号尽量与【讲义目录与记号参考】保持一致（例如同样用 $F_y$、$\\partial$、向量写法）；',
+    '   讲义里若用某个约定，优先沿用，不要另起一套。',
+    '3. 不编造讲义里的页码、题号、定理编号；也不要声称「讲义第 X 页说过」。',
+    '4. 能确定的部分正常讲；拿不准的地方明说「这一点我不确定」。',
+    '5. 如果这道题其实属于本课程后续章节，指出「这属于后续章节的内容」，但不要因此拒绝解答。',
+    '6. 不要输出 HTML，不要用 Markdown 表格；数学用 $...$ 或 $$...$$。',
+    '7. 篇幅控制在 500 字内，结构清楚。',
+  ].join('\n');
+}
+
 function groundingRules(kind) {
   const base = [
     '只依据下面给出的【讲义摘录】回答；摘录里没有的内容不要替学生补。',
@@ -230,20 +294,9 @@ export async function answerQuestion({ course, packs, question, kind = 'knowledg
     }
   }
 
+  // 讲义里没有对应内容：不直接拒答，改用「超出讲义」模式。
   if (!packsUsed.length) {
-    return {
-      kind: k,
-      retrievalMode: retrieval.mode,
-      status: 'unanswered',
-      html: '<span class="noev">无依据</span><br>这个问题我在本讲的讲义里没有找到对应内容，已经记下来了，等老师补充。',
-      text: '无依据：讲义未包含相关内容。',
-      citations: [],
-      usage: { input_tokens: 0, output_tokens: 0 },
-      latencyMs: Date.now() - started,
-      chapters: [],
-      packVersions: {},
-      provider: 'none',
-    };
+    return generateOffSyllabus({ course, packs, q, k, llm, started, retrievalMode: retrieval.mode });
   }
 
   const system = buildSystemPrompt(course, k);
@@ -269,7 +322,13 @@ export async function answerQuestion({ course, packs, question, kind = 'knowledg
   ].join('\n');
 
   const { text, usage } = await llm.complete({ system, user, maxTokens: spec.maxTokens });
-  const rendered = renderAnswer(text, packsUsed, { allowUncited: k === 'extend' });
+  let rendered = renderAnswer(text, packsUsed, { allowUncited: k === 'extend' });
+
+  // 模型按规则回了「无依据」（检索命中的内容其实不相关）→ 换超出讲义模式重试一次。
+  // 只在这种情况下多花一次调用，正常问答不受影响。
+  if (rendered.status === 'unanswered' || (rendered.status === 'uncited' && !(rendered.citations || []).length)) {
+    return generateOffSyllabus({ course, packs, q, k, llm, started, retrievalMode: retrieval.mode });
+  }
 
   const packVersions = {};
   const chapters = [];
