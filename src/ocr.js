@@ -204,7 +204,8 @@ export async function resolveBackend(llm) {
   const want = (process.env.OCR_BACKEND || 'auto').toLowerCase();
   const hasCmd = Boolean(commandTemplate());
   if (want === 'command') return hasCmd ? 'command' : null;
-  if (want === 'local' || want === 'vision') return want;
+  if (want === 'local') return want;
+  if (want === 'vision') return 'vision'; // 具体是否可用由调用方检查，并给出可读错误
   if (hasCmd) return 'command';
   // auto：有独立视觉模型就用它（比本机 OCR 准，尤其公式/表格），否则退回本机
   if (ocrVisionClient()?.supportsVision) return 'vision';
@@ -246,6 +247,20 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
   const { from, to } = parsePages(pages, total);
   const backend = await resolveBackend(llm);
   const client = ocrClient(llm);
+
+  // 选了视觉模型但没配好时，给一句能照着做的错误，而不是内部的 undefined 报错
+  if (backend === 'vision') {
+    if (!client) {
+      throw new Error(
+        '选了「视觉模型」，但还没有可用的视觉模型：请在「设置 → OCR 视觉模型」填 Base URL / 模型名 / API Key（或 .env 里的 OCR_BASE_URL / OCR_MODEL / OCR_API_KEY）。',
+      );
+    }
+    if (client.supportsVision === false) {
+      throw new Error(
+        `当前聊天模型（${client.provider || '未知'}）不支持图片输入。请单独配置视觉模型：OCR_BASE_URL / OCR_MODEL / OCR_API_KEY。`,
+      );
+    }
+  }
   if (!backend) {
     throw new Error(
       '没有可用的 OCR 方式：macOS 需要 Xcode 命令行工具（xcode-select --install），' +
