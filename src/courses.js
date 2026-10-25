@@ -189,7 +189,7 @@ export function saveMaterial(courseId, originalName, buffer) {
   if (!course) throw new Error('课程不存在');
   const safe = path.basename(String(originalName || 'material')).replace(/[/\\]/g, '_').slice(0, 120);
   if (!safe || safe.startsWith('.')) throw new Error('文件名不合法');
-  if (buffer.length > 40 * 1024 * 1024) throw new Error('单个文件不能超过 40MB');
+  if (buffer.length > 200 * 1024 * 1024) throw new Error('单个文件不能超过 200MB（教材 PDF 通常够用）');
 
   const dir = path.join(COURSE_LIB, courseId);
   fs.mkdirSync(dir, { recursive: true });

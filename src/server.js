@@ -143,8 +143,11 @@ const readRaw = (req, limit = 42 * 1024 * 1024) =>
     req.on('data', (c) => {
       size += c.length;
       if (size > limit) {
-        reject(new Error('文件过大'));
-        req.destroy();
+        // 不要直接 destroy：那样客户端只看到连接断了，看不到任何提示。
+        // 停掉收集、把剩余数据排空，让上层能正常返回 4xx。
+        req.removeAllListeners('data');
+        req.resume();
+        reject(new Error(`文件过大（上限 ${Math.round(limit / 1024 / 1024)}MB）`));
         return;
       }
       chunks.push(c);
@@ -391,7 +394,7 @@ async function handleTeacher(req, res, url, p) {
       }
       if (method === 'PUT') {
         const name = url.searchParams.get('name') || 'material.md';
-        const buf = await readRaw(req);
+        const buf = await readRaw(req, 210 * 1024 * 1024);
         const saved = saveMaterial(courseId, name, buf);
         const rebuild = await rebuildCourse(courseId);
         return json(res, 200, { ok: true, ...saved, rebuild });

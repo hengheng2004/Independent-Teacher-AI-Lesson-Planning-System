@@ -432,7 +432,7 @@ async function renderCourse(id) {
   const matCard = el('div', 'card');
   matCard.appendChild(el('h2', '', '材料'));
   matCard.appendChild(
-    el('p', 'muted small', '拖进来即可。.md / .txt 直接进检索；扫描版 PDF 点「OCR 识别」转成文字后同样可检索。上传后自动重建，不用敲命令。'),
+    el('p', 'muted small', '整个页面都可以拖：拖到任意位置都算上传（不必对准虚线框）。.md / .txt 直接进检索；扫描版 PDF 点「OCR 识别」转文字后可检索。单个文件最大 200MB。'),
   );
 
   const drop = el('div', 'drop', '把文件拖到这里，或点击选择');
@@ -690,6 +690,31 @@ async function runOcr(courseId, name, btn) {
     btn.disabled = false;
     btn.textContent = original;
   }
+}
+
+// 拖文件时只要落在页面上，就阻止浏览器"打开这个文件"的默认行为。
+// 否则稍微拖偏一点，整个工作台会被 PDF 顶掉，看起来像上传没反应。
+if (typeof window !== 'undefined') {
+  let dragDepth = 0;
+  window.addEventListener('dragenter', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    dragDepth += 1;
+  });
+  window.addEventListener('dragover', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+  });
+  window.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+  });
+  window.addEventListener('drop', (e) => {
+    // 只在「材料」页生效，其它页面照常
+    if (!$('#uploads')) return;
+    e.preventDefault();
+    dragDepth = 0;
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length) uploadFiles(files);
+  });
 }
 
 async function uploadFiles(files) {

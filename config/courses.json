@@ -48,6 +48,49 @@
         "学生讲义.md 只放学生版内容；教师版、答案、教材 PDF 一律不进学生端。",
         "换成自己的课：把 courses/<你的课程>/ 建好，改这里一条即可。"
       ]
+    },
+    {
+      "id": "caculus",
+      "name": "高等数学",
+      "school": "university",
+      "teacher": "me",
+      "enabled": true,
+      "quota": {
+        "daily": 20,
+        "monthly": 200
+      },
+      "policy": {
+        "defaultMode": "hint",
+        "allowFullSolution": true
+      },
+      "denyGlobs": [
+        "*备课*",
+        "*教师*",
+        "*答案*",
+        "*解答*",
+        "资料/*"
+      ],
+      "chapters": [
+        {
+          "key": "ch1",
+          "title": "函数与极限",
+          "sources": [
+            "lim.md",
+            "lim2-2.md",
+            "drop-test.md"
+          ]
+        },
+        {
+          "key": "ch2",
+          "title": "导数与微分",
+          "sources": [
+            "lim2.md"
+          ]
+        }
+      ],
+      "references": [],
+      "errata": [],
+      "notes": []
     }
   ]
 }

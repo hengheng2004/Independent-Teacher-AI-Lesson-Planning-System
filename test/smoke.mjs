@@ -382,6 +382,11 @@ const up = saveMaterial(TMP, '讲义.md', Buffer.from('# 第一章\n\n## 1.1\n\n
 ok('上传材料落盘', () => assert.equal(up.name, '讲义.md'));
 const up2 = saveMaterial(TMP, '讲义.md', Buffer.from('x'));
 ok('同名自动加后缀，不覆盖', () => assert.equal(up2.name, '讲义-2.md'));
+ok('超过 200MB 会被拒绝', () => {
+  const big = Buffer.alloc(201 * 1024 * 1024);
+  assert.throws(() => saveMaterial(TMP, 'huge.pdf', big), /200MB/);
+  return true;
+});
 ok('材料列表包含两份', () => assert.equal(listMaterials(TMP).length, 2));
 
 const w = writeCourseFile(TMP, '备课/ch1/第01章.md', '# 讲义\n');
