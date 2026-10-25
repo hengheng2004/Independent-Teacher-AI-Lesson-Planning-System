@@ -32,7 +32,13 @@ export function writeSettings(patch) {
   // 空字符串表示「不修改已有值」，避免界面上用掩码回显时把 key 抹掉
   for (const group of ['chat', 'review', 'ocr']) {
     for (const [k, v] of Object.entries(patch?.[group] || {})) {
-      if (v === '' || v == null) continue;
+      // null 表示「清空这一项」，'' 表示「不修改」——两者要区分开，
+      // 否则界面上没法把已经存下的 key 删掉。
+      if (v === null) {
+        cur[group][k] = '';
+        continue;
+      }
+      if (v === '') continue;
       // 界面上回显的是 ••••1234 这种掩码，原样提交回来时必须忽略，
       // 否则会把真实 key 覆盖成掩码字符串。
       if (/^[•*]+/.test(String(v))) continue;
@@ -48,6 +54,7 @@ export function writeSettings(patch) {
 export function applySettings(s = readSettings()) {
   const set = (k, v) => {
     if (v) process.env[k] = v;
+    else delete process.env[k];
   };
 
   if (s.chat.provider) set('LLM_PROVIDER', s.chat.provider);

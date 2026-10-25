@@ -1444,11 +1444,23 @@ async function renderSettings() {
     const input = el('input');
     input.id = id;
     input.type = 'password';
-    input.value = value || '';
-    input.placeholder = placeholder || '';
+    // 关键：掩码只放在 placeholder 里，绝不放进 value。
+    // 否则用户点进去粘贴会变成「••••1234sk-新key」，被守卫丢掉，看起来像没覆盖。
+    const masked = /^[•*]+/.test(value || '') ? value : '';
+    input.value = '';
+    input.placeholder = masked ? `${masked}（已保存，粘贴新 key 覆盖）` : placeholder || '';
     input.style.flex = '1';
     input.autocomplete = 'off';
     input.spellcheck = false;
+
+    const clearBtn = el('button', 'small danger', '清除');
+    clearBtn.type = 'button';
+    clearBtn.onclick = async () => {
+      if (!confirm('清除已保存的 key？')) return;
+      await api('/api/teacher/settings', { method: 'PUT', body: JSON.stringify({ ocr: { apiKey: null }, chat: { apiKey: null } }) });
+      settingsFlash = '已清除保存的 key';
+      renderSettings();
+    };
 
     const eye = el('button', 'small', '显示');
     eye.type = 'button';
@@ -1464,7 +1476,12 @@ async function renderSettings() {
     };
 
     // 粘贴后立刻隐藏，并提示末四位，让人确认贴对了又看不到全串
-    input.addEventListener('paste', () => {
+    input.addEventListener('paste', (ev) => {
+      const clip = ev.clipboardData?.getData('text');
+      if (clip) {
+        ev.preventDefault();
+        input.value = clip.trim();
+      }
       setTimeout(() => {
         input.type = 'password';
         eye.textContent = '显示';
@@ -1484,12 +1501,13 @@ async function renderSettings() {
     row.appendChild(lab);
     row.appendChild(input);
     row.appendChild(eye);
+    row.appendChild(clearBtn);
     parent.appendChild(row);
 
     const hint = el('div', 'muted small');
     hint.dataset.hintFor = id;
     hint.style.cssText = 'margin:-4px 0 8px 96px';
-    hint.textContent = input.value && /^[•*]/.test(input.value) ? '已保存（只显示末四位）；要更换就重新粘贴' : '';
+    hint.textContent = masked ? '已保存（只显示末四位）；粘贴新 key 会直接覆盖' : '';
     parent.appendChild(hint);
     return input;
   };
