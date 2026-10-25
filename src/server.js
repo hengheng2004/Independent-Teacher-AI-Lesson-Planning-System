@@ -122,6 +122,16 @@ const adminToken = (() => {
 })();
 
 // ---------- 教师工作台：会话鉴权 ----------
+// 代码版本：用服务端文件的修改时间，方便一眼看出某个实例是不是旧代码
+const CODE_VERSION = (() => {
+  try {
+    const t = fs.statSync(path.join(SERVICE_DIR, 'src/server.js')).mtime;
+    return t.toISOString().slice(0, 16).replace('T', ' ');
+  } catch {
+    return '';
+  }
+})();
+
 const COOKIE = 'dsh_teacher';
 const loginFails = new Map(); // ip -> {n, until}
 
@@ -360,6 +370,7 @@ async function handleTeacher(req, res, url, p) {
         courses,
         provider: llm.provider,
         model: llm.model || 'mock',
+        codeVersion: CODE_VERSION,
         ocr: {
           backend: await resolveBackend(llm),
           visionModel: process.env.OCR_MODEL || (llm.supportsVision ? llm.model : null),

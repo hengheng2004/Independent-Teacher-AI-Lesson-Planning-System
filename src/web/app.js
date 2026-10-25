@@ -66,6 +66,7 @@ async function boot() {
     state.provider = s.provider;
     state.model = s.model;
     state.ocr = s.ocr;
+    state.codeVersion = s.codeVersion;
     state.summary = s.summary;
     $('#login').classList.add('hide');
     $('#app').classList.remove('hide');
@@ -1483,6 +1484,12 @@ async function renderSettings() {
   saveRow.appendChild(msg);
   form.appendChild(saveRow);
   m.appendChild(form);
+
+  if (state.codeVersion) {
+    const ver = el('p', 'muted small');
+    ver.textContent = `代码版本：${state.codeVersion}（两个实例版本不一致时，重启落后的那个）`;
+    m.appendChild(ver);
+  }
 
   const c2 = el('div', 'card');
   c2.appendChild(el('h2', '', '数据'));
