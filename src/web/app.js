@@ -1380,7 +1380,17 @@ async function renderSettings() {
   try {
     data = await api('/api/teacher/settings');
   } catch (e) {
-    m.appendChild(el('div', 'notice bad', e.message));
+    // 兼容旧版本服务端：接口不存在时不要甩一个 "not found" 给老师
+    const hint = /not found|404/i.test(e.message)
+      ? '这个版本还不支持在界面里改模型配置，请编辑 .env 后重启服务。'
+      : e.message;
+    const box = el('div', 'notice bad');
+    box.appendChild(el('div', '', hint));
+    const reload = el('button', 'small', '重新加载页面');
+    reload.style.marginTop = '8px';
+    reload.onclick = () => location.reload();
+    box.appendChild(reload);
+    m.appendChild(box);
     return;
   }
   const st = data.settings;
