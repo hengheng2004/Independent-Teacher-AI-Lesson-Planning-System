@@ -17,12 +17,21 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
-const NAME = `独立教师AI工作台-${pkg.version}-macOS-${ARCH}`;
+// 目标平台：--win 打 Windows 包，默认 macOS
+const TARGET = process.argv.includes('--win') ? 'win32' : 'darwin';
+const ARCH = process.arch === 'arm64' && TARGET === 'darwin' ? 'arm64' : 'x64';
+const PLATFORM_LABEL = TARGET === 'win32' ? 'Windows' : 'macOS';
+const NAME = `独立教师AI工作台-${pkg.version}-${PLATFORM_LABEL}-${ARCH}`;
+const NODE_VER = 'v26.12.1';
+const RUNTIME_EXE = TARGET === 'win32' ? 'node.exe' : 'node';
 const DIST = path.join(ROOT, 'dist');
 const APP = path.join(DIST, NAME);
-const NODE_TARBALL = `/tmp/node-v26.12.1-darwin-${ARCH}.tar.gz`;
-const NODE_DIR = `/tmp/node-v26.12.1-darwin-${ARCH}`;
+const NODE_ARCHIVE =
+  TARGET === 'win32'
+    ? `/tmp/node-${NODE_VER}-win-${ARCH}.zip`
+    : `/tmp/node-${NODE_VER}-darwin-${ARCH}.tar.gz`;
+const NODE_DIR =
+  TARGET === 'win32' ? `/tmp/node-${NODE_VER}-win-${ARCH}` : `/tmp/node-${NODE_VER}-darwin-${ARCH}`;
 
 const log = (s) => console.log(`  ${s}`);
 const size = (p) => {
@@ -34,15 +43,20 @@ const size = (p) => {
 const copy = (from, to) => fs.cpSync(from, to, { recursive: true, dereference: true });
 
 function ensureNode() {
-  if (fs.existsSync(path.join(NODE_DIR, 'bin/node'))) return;
-  if (!fs.existsSync(NODE_TARBALL)) {
-    throw new Error(
-      `缺少 Node 运行时：${NODE_TARBALL}\n` +
-        `先下载：curl -L -o ${NODE_TARBALL} https://nodejs.org/dist/latest-v26.x/node-v26.12.1-darwin-${ARCH}.tar.gz\n` +
-        `然后：tar xzf ${NODE_TARBALL} -C /tmp`,
-    );
+  const probe = TARGET === 'win32' ? path.join(NODE_DIR, 'node.exe') : path.join(NODE_DIR, 'bin/node');
+  if (fs.existsSync(probe)) return;
+  if (!fs.existsSync(NODE_ARCHIVE)) {
+    const url =
+      TARGET === 'win32'
+        ? `https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-win-${ARCH}.zip`
+        : `https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-darwin-${ARCH}.tar.gz`;
+    throw new Error(`缺少 Node 运行时：${NODE_ARCHIVE}\n先下载：curl -L -o ${NODE_ARCHIVE} ${url}`);
   }
-  spawn('tar', ['xzf', NODE_TARBALL, '-C', '/tmp'], { stdio: 'inherit' });
+  if (TARGET === 'win32') {
+    spawn('unzip', ['-q', NODE_ARCHIVE, '-d', '/tmp'], { stdio: 'inherit' });
+  } else {
+    spawn('tar', ['xzf', NODE_ARCHIVE, '-C', '/tmp'], { stdio: 'inherit' });
+  }
 }
 
 async function main() {
@@ -54,8 +68,9 @@ async function main() {
 
   // 1) 运行时
   fs.mkdirSync(path.join(APP, 'runtime'), { recursive: true });
-  copy(path.join(NODE_DIR, 'bin/node'), path.join(APP, 'runtime/node'));
-  fs.chmodSync(path.join(APP, 'runtime/node'), 0o755);
+  const srcExe = TARGET === 'win32' ? path.join(NODE_DIR, 'node.exe') : path.join(NODE_DIR, 'bin/node');
+  copy(srcExe, path.join(APP, 'runtime', RUNTIME_EXE));
+  if (TARGET !== 'win32') fs.chmodSync(path.join(APP, 'runtime', RUNTIME_EXE), 0o755);
   log(`Node 运行时 ${await size(path.join(APP, 'runtime/node'))}`);
 
   // 2) 代码与资源（不带 .git、测试、构建产物）
@@ -67,20 +82,42 @@ async function main() {
   }
   // 打包脚本自己不需要（对方不开发）
   fs.rmSync(path.join(APP, 'scripts/pack.mjs'), { force: true });
-  fs.rmSync(path.join(APP, 'scripts/ocr/ocr.swift'), { force: true }); // 编译不了就别留，OCR 走视觉模型
+  // ocr.swift 要留着：macOS 上本机 OCR 靠它现编（没有 Xcode 命令行工具时自动落到视觉模型）
   log('代码与文档');
 
   // 3) 依赖：只留当前平台，删掉浏览器版运行时
   const nm = path.join(APP, 'node_modules');
   copy(path.join(ROOT, 'node_modules'), nm);
+
+  // sharp 的原生二进制是可选依赖，npm 只装当前平台的。
+  // 打其它平台的包时必须手动补，否则对方机器上 import sharp 直接失败。
+  const sharpPlatform = TARGET === 'win32' ? 'sharp-win32-x64' : 'sharp-darwin-arm64';
+  // 先从临时目录补齐，再校验
+  const extraImg = `/tmp/winimg/node_modules/@img/${sharpPlatform}`;
+  if (TARGET === 'win32' && fs.existsSync(extraImg) && !fs.existsSync(path.join(nm, '@img', sharpPlatform))) {
+    copy(extraImg, path.join(nm, '@img', sharpPlatform));
+    const vipsSrc = path.join('/tmp/winimg/node_modules/@img', 'sharp-libvips-win32-x64');
+    if (fs.existsSync(vipsSrc)) copy(vipsSrc, path.join(nm, '@img', 'sharp-libvips-win32-x64'));
+  }
+  if (!fs.existsSync(path.join(nm, '@img', sharpPlatform))) {
+    throw new Error(
+      `缺少 ${sharpPlatform}：\n` +
+        `mkdir -p /tmp/winimg && cd /tmp/winimg && npm init -y\n` +
+        `npm install @img/${sharpPlatform} @img/${sharpPlatform.replace('sharp', 'sharp-libvips')} --os=win32 --cpu=x64\n` +
+        `然后把这些目录复制到 node_modules/@img/ 再打包`,
+    );
+  }
+
+  const dropOther =
+    TARGET === 'win32'
+      ? ['node_modules/onnxruntime-node/bin/napi-v6/linux', 'node_modules/onnxruntime-node/bin/napi-v6/darwin']
+      : ['node_modules/onnxruntime-node/bin/napi-v6/linux', 'node_modules/onnxruntime-node/bin/napi-v6/win32'];
   const prune = [
     'node_modules/onnxruntime-web',
-    'node_modules/onnxruntime-node/bin/napi-v6/linux',
-    'node_modules/onnxruntime-node/bin/napi-v6/win32',
-    'node_modules/@img/sharp-linux-x64',
-    'node_modules/@img/sharp-linux-arm64',
-    'node_modules/@img/sharp-win32-x64',
-    'node_modules/@img/sharp-darwin-x64',
+    ...dropOther,
+    ...(TARGET === 'win32'
+      ? ['node_modules/@img/sharp-darwin-arm64', 'node_modules/@img/sharp-libvips-darwin-arm64']
+      : []),
   ];
   let saved = 0;
   for (const rel of prune) {
@@ -102,9 +139,15 @@ async function main() {
   copy(path.join(ROOT, 'config/students.example.json'), path.join(APP, 'config/students.example.json'));
 
   // 5) 启动脚本
-  fs.writeFileSync(path.join(APP, '启动.command'), LAUNCHER, { mode: 0o755 });
-  fs.writeFileSync(path.join(APP, '停止.command'), STOPPER, { mode: 0o755 });
-  fs.writeFileSync(path.join(APP, '使用说明.txt'), READ_ME);
+  if (TARGET === 'win32') {
+    const crlf = (t) => t.replace(/\r?\n/g, '\r\n');
+    fs.writeFileSync(path.join(APP, '启动.bat'), crlf(LAUNCHER_WIN));
+    fs.writeFileSync(path.join(APP, '使用说明.txt'), crlf(READ_ME_WIN));
+  } else {
+    fs.writeFileSync(path.join(APP, '启动.command'), LAUNCHER, { mode: 0o755 });
+    fs.writeFileSync(path.join(APP, '停止.command'), STOPPER, { mode: 0o755 });
+    fs.writeFileSync(path.join(APP, '使用说明.txt'), READ_ME);
+  }
 
   log(`总大小 ${await size(APP)}`);
 
@@ -113,8 +156,13 @@ async function main() {
   fs.rmSync(zip, { force: true });
   console.log('\n  压缩中…');
   await new Promise((resolve, reject) => {
-    const p = spawn('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', APP, zip], { stdio: 'inherit' });
-    p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('ditto 压缩失败'))));
+    if (TARGET === 'win32') {
+      const p = spawn('zip', ['-qr', zip, NAME], { cwd: DIST, stdio: 'inherit' });
+      p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('zip 压缩失败'))));
+    } else {
+      const p = spawn('ditto', ['-c', '-k', '--sequesterRsrc', '--keepParent', APP, zip], { stdio: 'inherit' });
+      p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('ditto 压缩失败'))));
+    }
   });
   console.log(`\n完成：${path.relative(ROOT, zip)}（${await size(zip)}）\n`);
 }
@@ -173,6 +221,83 @@ echo
 echo "服务在运行（PID \${SERVER_PID}）。关掉这个窗口或按 Ctrl+C 停止。"
 trap 'kill $SERVER_PID $WATCH_PID 2>/dev/null; rm -f .runtime.pid' EXIT
 wait $SERVER_PID
+`;
+
+const LAUNCHER_WIN = String.raw`@echo off
+setlocal enabledelayedexpansion
+chcp 65001 >nul
+title 独立教师 AI 工作台
+cd /d "%~dp0"
+
+if not exist .env if exist .env.example copy .env.example .env >nul
+
+rem 挑一个空闲端口（8787 起）
+set PORT=8787
+:findport
+netstat -ano | findstr ":%PORT% " | findstr LISTENING >nul
+if not errorlevel 1 (
+  set /a PORT+=1
+  if !PORT! gtr 8900 goto portfail
+  goto findport
+)
+
+rem 第一次启动：建知识包与向量
+if not exist packs (
+  echo 第一次启动，正在建立知识索引...
+  runtime\node.exe scripts\build-packs.mjs
+  runtime\node.exe scripts\build-vectors.mjs
+)
+
+set TOKEN=
+if exist data\admin-token.txt set /p TOKEN=<data\admin-token.txt
+
+echo 正在启动（端口 %PORT%）...
+echo 浏览器会自动打开；没打开就手动访问 http://127.0.0.1:%PORT%/teacher
+start "" cmd /c "timeout /t 3 >nul & start "" http://127.0.0.1:%PORT%/teacher?token=%TOKEN%"
+
+runtime\node.exe src\server.js
+
+echo.
+echo 服务已停止。按任意键关闭窗口。
+pause >nul
+goto :eof
+
+:portfail
+echo 端口 8787-8900 都被占用了，请先关掉占用程序再试。
+pause
+`;
+
+const READ_ME_WIN = String.raw`独立教师 AI 工作台（Windows）
+================================
+
+怎么用
+------
+1. 双击「启动.bat」
+2. 浏览器会自动打开；如果没有，手动访问窗口里显示的地址
+3. 用页面上的令牌进入工作台
+
+想填 API key
+------------
+1. 用记事本打开同目录下的 .env（第一次启动后出现）
+2. 找到 DEEPSEEK_API_KEY=，把 key 粘在后面
+3. 关掉窗口，重新双击「启动.bat」
+
+停止
+----
+关掉那个黑色窗口即可。
+
+数据在哪
+--------
+courses\    课程材料与讲义
+students\   学生画像
+data\       数据库、令牌、学生码、向量模型
+备份请整体复制这三个目录。
+
+注意
+----
+- OCR：Windows 上只支持视觉模型，需要在 .env 里配 OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL，
+  并把 OCR_BACKEND 设为 vision。本机 OCR 依赖 macOS 的系统能力，Windows 用不了。
+- 首次启动会生成 data\admin-token.txt，那是登录令牌，不要外传。
 `;
 
 const STOPPER = `#!/bin/bash

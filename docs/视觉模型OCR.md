@@ -127,13 +127,19 @@ node scripts/ocr.mjs regression-analysis lec1.pdf 1-10
 
 ---
 
-## 八、已知限制（Windows）
+## 八、平台差异
 
-视觉 OCR 的**调用链已经写好**，但在 Windows 上还差两处才能真正跑起来：
+**Windows：只支持视觉模型 OCR。**
 
-1. `pdfPages()` 目前用 macOS 的 `mdls` 读页数，Windows 上会在第一步就报「读不到 PDF 页数」——要改成纯 JS 解析
-2. 页面渲染依赖 `pdftoppm.exe`，需要 poppler for Windows 或改用其它渲染方式
+| 平台 | 本机 OCR | 视觉模型 OCR |
+| --- | --- | --- |
+| macOS | ✅（系统 Vision，免费、快） | ✅ |
+| Linux | ✅（`tesseract` + 中文语言包） | ✅ |
+| Windows | ❌ 不支持 | ✅ **唯一可用方式** |
 
-也就是说：**Windows 上现在的视觉 OCR 是接不通的**，配置再对也会卡在第一处。修这两处大约 **2–3 小时**（含在 Windows 上实测）。
+原因是本机 OCR 依赖各系统自己的识别能力，Windows 没有可随包分发的免费中文 OCR（tesseract 的 Windows 版体验差、还得单独装），所以 Windows 上请直接用视觉模型。
 
-macOS 与 Linux 不受这个限制。
+页面渲染和页数解析已经统一用 PDFium（WebAssembly），三个平台同一套代码，不依赖 poppler 或 Spotlight：
+
+- 页数：PDFium 直接读
+- 页面转图：PDFium 渲染 → sharp 压成 JPEG（按页宽自动缩放到约 1400px）

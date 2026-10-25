@@ -12,12 +12,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { pageCount as pdfPageCount, renderPages as pdfRenderPages } from './pdfrender.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COURSES = path.join(ROOT, 'courses');
 const OCR_SWIFT = path.join(ROOT, 'scripts/ocr/ocr.swift');
 const OCR_BIN = path.join(ROOT, 'data/bin/ocr');
-const RENDER_BIN = path.join(ROOT, 'data/bin/render');
 
 const has = (cmd) =>
   new Promise((resolve) => {
@@ -45,29 +45,13 @@ export function pagesFromText(text) {
 }
 
 async function pdfPages(pdf) {
-  // 优先问 Swift 二进制（PDFKit），它不依赖 Spotlight 索引
-  if (process.platform === 'darwin') {
-    try {
-      await compile(OCR_SWIFT, OCR_BIN);
-      const n = await new Promise((resolve) => {
-        const p = spawn(OCR_BIN, [pdf, '--count']);
-        let out = '';
-        p.stdout.on('data', (d) => (out += d));
-        p.on('exit', () => resolve(Number(out.trim())));
-      });
-      if (Number.isFinite(n) && n > 0) return n;
-    } catch {}
+  // 用 PDFium（WASM）读页数：不依赖 Spotlight、poppler 或任何外部命令，
+  // macOS / Linux / Windows 同一套代码。
+  try {
+    return await pdfPageCount(pdf);
+  } catch {
+    return null;
   }
-  // 兜底：mdls
-  return new Promise((resolve) => {
-    const p = spawn('mdls', ['-raw', '-name', 'kMDItemNumberOfPages', pdf]);
-    let out = '';
-    p.stdout.on('data', (d) => (out += d));
-    p.on('exit', () => {
-      const n = Number(out.trim());
-      resolve(Number.isFinite(n) && n > 0 ? n : null);
-    });
-  });
 }
 
 function compile(src, bin) {
@@ -82,7 +66,8 @@ function compile(src, bin) {
 /* ---------------- local：本机 OCR ---------------- */
 
 async function localAvailable() {
-  if (process.platform === 'darwin') return true;
+  // macOS 走系统 Vision，但需要 swiftc 现编一个小工具；没装 Xcode 命令行工具就用不了
+  if (process.platform === 'darwin') return has('swiftc');
   return has('tesseract');
 }
 
@@ -105,24 +90,21 @@ async function ocrLocal({ pdf, from, to, onProgress }) {
     return text;
   }
 
-  // 其他平台：pdftoppm + tesseract
+  // 其他平台：pdfium 渲染 + tesseract（不再需要 poppler）
+  const { pages } = await pdfRenderPages(pdf, from, to);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ocr-'));
-  await new Promise((resolve, reject) => {
-    const p = spawn('pdftoppm', ['-jpeg', '-r', '200', '-f', String(from), '-l', String(to), pdf, path.join(tmp, 'p')]);
-    p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('需要 poppler-utils（pdftoppm）'))));
-  });
-  const files = fs.readdirSync(tmp).filter((f) => f.endsWith('.jpg')).sort();
   let out = '';
-  for (let i = 0; i < files.length; i += 1) {
-    const page = from + i;
+  for (const item of pages) {
+    const img = path.join(tmp, `p-${item.page}.jpg`);
+    fs.writeFileSync(img, item.jpeg);
     const txt = await new Promise((resolve, reject) => {
-      const p = spawn('tesseract', [path.join(tmp, files[i]), 'stdout', '-l', 'chi_sim+eng']);
-      let s = '';
-      p.stdout.on('data', (d) => (s += d));
-      p.on('exit', (c) => (c === 0 ? resolve(s) : reject(new Error('需要安装 tesseract-ocr' + '（含中文语言包）'))));
+      const p = spawn('tesseract', [img, 'stdout', '-l', 'chi_sim+eng']);
+      let o = '';
+      p.stdout.on('data', (d) => (o += d));
+      p.on('exit', (c) => (c === 0 ? resolve(o) : reject(new Error('需要安装 tesseract-ocr 与中文语言包'))));
     });
-    out += `\n## 第 ${page} 页\n\n${txt.trim()}\n`;
-    onProgress?.(page);
+    out += `\n## 第 ${item.page} 页\n\n${txt.trim()}\n`;
+    onProgress?.(item.page);
   }
   fs.rmSync(tmp, { recursive: true, force: true });
   return out;
@@ -130,33 +112,11 @@ async function ocrLocal({ pdf, from, to, onProgress }) {
 
 /* ---------------- vision：交给多模态模型 ---------------- */
 
-async function renderPages(pdf, from, to) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pages-'));
-  if (process.platform === 'darwin') {
-    await compile(path.join(ROOT, 'scripts/ocr/render.swift'), RENDER_BIN);
-    await new Promise((resolve, reject) => {
-      const p = spawn(RENDER_BIN, [pdf, tmp, String(from), String(to)], { stdio: ['ignore', 'ignore', 'pipe'] });
-      p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('页面渲染失败'))));
-    });
-  } else {
-    await new Promise((resolve, reject) => {
-      const p = spawn('pdftoppm', ['-jpeg', '-r', '150', '-f', String(from), '-l', String(to), pdf, path.join(tmp, 'p')]);
-      p.on('exit', (c) => (c === 0 ? resolve() : reject(new Error('需要 poppler-utils（pdftoppm）'))));
-    });
-  }
-  return fs
-    .readdirSync(tmp)
-    .filter((f) => f.endsWith('.jpg'))
-    .sort()
-    .map((f) => path.join(tmp, f));
-}
-
 async function ocrVision({ pdf, from, to, llm, onProgress }) {
-  const images = await renderPages(pdf, from, to);
+  const { pages } = await pdfRenderPages(pdf, from, to);
   let out = '';
-  for (let i = 0; i < images.length; i += 1) {
-    const page = from + i;
-    const b64 = fs.readFileSync(images[i]).toString('base64');
+  for (const item of pages) {
+    const b64 = item.jpeg.toString('base64');
     const text = await llm.chat({
       messages: [
         {
@@ -168,17 +128,16 @@ async function ocrVision({ pdf, from, to, llm, onProgress }) {
         {
           role: 'user',
           content: [
-            { type: 'text', text: `请转写第 ${page} 页。` },
+            { type: 'text', text: `请转写第 ${item.page} 页。` },
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } },
           ],
         },
       ],
       maxTokens: 2000,
     });
-    out += `\n## 第 ${page} 页\n\n${String(text).trim()}\n`;
-    onProgress?.(page);
+    out += `\n## 第 ${item.page} 页\n\n${String(text).trim()}\n`;
+    onProgress?.(item.page);
   }
-  fs.rmSync(path.dirname(images[0]), { recursive: true, force: true });
   return out;
 }
 
@@ -207,8 +166,8 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
   const backend = await resolveBackend(llm);
   if (!backend) {
     throw new Error(
-      '没有可用的 OCR 方式：macOS 自带 Vision；其它系统请装 poppler-utils + tesseract，' +
-        '或配置多模态模型（OCR_BACKEND=vision）',
+      '没有可用的 OCR 方式：macOS 需要 Xcode 命令行工具（xcode-select --install），' +
+        'Linux 需要 tesseract-ocr + 中文语言包；或者配置多模态模型并把 OCR_BACKEND 设为 vision',
     );
   }
 
