@@ -50,9 +50,9 @@
       ]
     },
     {
-      "id": "caculus",
+      "id": "advanced-math",
       "name": "高等数学",
-      "school": "university",
+      "school": "家里蹲",
       "teacher": "me",
       "enabled": true,
       "quota": {
@@ -73,19 +73,8 @@
       "chapters": [
         {
           "key": "ch1",
-          "title": "函数与极限",
-          "sources": [
-            "lim.md",
-            "lim2-2.md",
-            "drop-test.md"
-          ]
-        },
-        {
-          "key": "ch2",
-          "title": "导数与微分",
-          "sources": [
-            "lim2.md"
-          ]
+          "title": "第一章 函数与极限",
+          "sources": []
         }
       ],
       "references": [],

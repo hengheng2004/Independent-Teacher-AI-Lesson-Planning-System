@@ -465,6 +465,17 @@ async function handleTeacher(req, res, url, p) {
       }
     }
 
+    // ---- 聊天模型冒烟测试：模型名写错时能立刻发现 ----
+    if (p === '/api/teacher/chat/test' && method === 'POST') {
+      const t0 = Date.now();
+      try {
+        const r = await llm.chat({ messages: [{ role: 'user', content: '回复两个字：可用' }], maxTokens: 16 });
+        return json(res, 200, { ok: true, provider: llm.provider, model: llm.model, ms: Date.now() - t0, sample: String(r).slice(0, 60) });
+      } catch (e) {
+        return json(res, 200, { ok: false, provider: llm.provider, model: llm.model, ms: Date.now() - t0, error: e.message });
+      }
+    }
+
     // ---- OCR 冒烟测试：确认视觉模型配对了没有 ----
     if (p === '/api/teacher/ocr/test' && method === 'POST') {
       const r = await testVision(llm);

@@ -42,7 +42,8 @@ export function writeSettings(patch) {
       // 界面上回显的是 ••••1234 这种掩码，原样提交回来时必须忽略，
       // 否则会把真实 key 覆盖成掩码字符串。
       if (/^[•*]+/.test(String(v))) continue;
-      cur[group][k] = String(v);
+      // 从网页/文档复制时常混进零宽字符和首尾空白，会让 URL 解析失败或模型名对不上
+      cur[group][k] = String(v).replace(/[\u200b-\u200d\ufeff]/g, '').trim();
     }
   }
   fs.mkdirSync(path.dirname(FILE), { recursive: true });

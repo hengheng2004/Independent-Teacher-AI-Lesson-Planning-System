@@ -1622,6 +1622,26 @@ async function renderSettings() {
       save.disabled = false;
     }
   };
+  const testChatBtn = el('button', '', '测试聊天');
+  testChatBtn.type = 'button';
+  testChatBtn.onclick = async () => {
+    testChatBtn.disabled = true;
+    const label = testChatBtn.textContent;
+    testChatBtn.textContent = '测试中…';
+    try {
+      const r = await api('/api/teacher/chat/test', { method: 'POST', body: JSON.stringify({}) });
+      settingsFlash = r.ok
+        ? `聊天模型可用：${r.provider} · ${r.model}（${r.ms}ms）`
+        : `聊天模型不可用：${r.error}`;
+      toast(r.ok ? `✅ 聊天模型可用（${r.ms}ms）` : '❌ ' + r.error, r.ok ? 4000 : 7000);
+      renderSettings();
+    } catch (e) {
+      toast('❌ 测试失败：' + e.message, 5000);
+      testChatBtn.disabled = false;
+      testChatBtn.textContent = label;
+    }
+  };
+
   const testBtn = el('button', '', '测试 OCR');
   testBtn.type = 'button';
   testBtn.onclick = async () => {
@@ -1646,6 +1666,7 @@ async function renderSettings() {
   };
 
   saveRow.appendChild(save);
+  saveRow.appendChild(testChatBtn);
   saveRow.appendChild(testBtn);
   saveRow.appendChild(msg);
   form.appendChild(saveRow);
