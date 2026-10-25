@@ -365,7 +365,7 @@ async function handleTeacher(req, res, url, p) {
       const course = createCourse(b);
       return json(res, 200, { ok: true, course: { ...course, materials: 0 } });
     }
-    const courseMatch = /^\/api\/teacher\/courses\/([a-z0-9-]+)$/.exec(p);
+    const courseMatch = /^\/api\/teacher\/courses\/([A-Za-z0-9_-]+)$/.exec(p);
     if (courseMatch) {
       const id = courseMatch[1];
       // 编辑页必须拿完整配置（含每章 sources），列表接口是精简版

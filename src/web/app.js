@@ -102,8 +102,8 @@ $('#logout').onclick = async () => {
 const routes = [
   [/^#\/overview$/, () => renderOverview()],
   [/^#\/courses$/, () => renderCourses()],
-  [/^#\/course\/([a-z0-9-]+)$/, (m) => renderCourse(m[1])],
-  [/^#\/prep\/([a-z0-9-]+)(?:\/([^/]+))?$/, (m) => renderPrep(m[1], m[2])],
+  [/^#\/course\/([A-Za-z0-9_-]+)$/, (m) => renderCourse(m[1])],
+  [/^#\/prep\/([A-Za-z0-9_-]+)(?:\/([^/]+))?$/, (m) => renderPrep(m[1], m[2])],
   [/^#\/students$/, () => renderStudents()],
   [/^#\/qa$/, () => renderQA()],
   [/^#\/settings$/, () => renderSettings()],
@@ -296,7 +296,7 @@ function openCreateCourse() {
     if ($('#nc-id').dataset.touched) return;
     $('#nc-id').value = $('#nc-name').value
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/[^A-Za-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 40);
   };

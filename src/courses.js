@@ -15,7 +15,7 @@ const INDEXABLE = new Set(['.md', '.markdown', '.txt']);
 
 export const isIndexable = (name) => INDEXABLE.has(path.extname(String(name)).toLowerCase());
 
-const SLUG = /^[a-z0-9][a-z0-9-]{1,40}$/;
+const SLUG = /^[A-Za-z0-9][A-Za-z0-9_-]{1,40}$/;
 
 export function readConfig() {
   return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));

@@ -270,6 +270,19 @@ try {
     body: JSON.stringify({ name: stuName }),
   });
 
+  // 真实课程的编号常带大写（CRS-ECNU-...），接口必须认
+  const upperId = 'CRS-TEST-UPPER-01';
+  const mkUpper = await fetch(`${base}/api/teacher/courses`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie },
+    body: JSON.stringify({ id: upperId, name: '大写编号测试', chapters: [{ key: 'ch1', title: '第一章' }] }),
+  });
+  ok('允许大写课程编号', mkUpper.status === 200);
+  const getUpper = await fetch(`${base}/api/teacher/courses/${upperId}`, { headers: { cookie } });
+  ok('大写编号能读取', getUpper.status === 200);
+  const delUpper = await fetch(`${base}/api/teacher/courses/${upperId}`, { method: 'DELETE', headers: { cookie } });
+  ok('大写编号能删除', delUpper.status === 200);
+
   const del = await fetch(`${base}/api/teacher/courses/${courseId}`, { method: 'DELETE', headers: { cookie } });
   ok('归档课程成功', del.status === 200);
 
