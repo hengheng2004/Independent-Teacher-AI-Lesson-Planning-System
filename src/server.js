@@ -938,6 +938,7 @@ const server = http.createServer(async (req, res) => {
         citations: result.citations,
         kind: result.kind,
         kindLabel: KIND_LABEL[result.kind],
+        offSyllabus: Boolean(result.offSyllabus),
         intent: { confidence: intent.confidence, source: intent.source, signals: intent.signals },
         quota: {
           summary: after.summary,

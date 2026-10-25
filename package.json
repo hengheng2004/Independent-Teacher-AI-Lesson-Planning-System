@@ -27,7 +27,8 @@
     "demo": "npm run build && node src/server.js",
     "watch": "node scripts/watch.mjs",
     "docs": "node scripts/build-guide.mjs",
-    "pack": "node scripts/pack.mjs"
+    "pack": "node scripts/pack.mjs",
+    "sync": "node scripts/sync-prod.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",
