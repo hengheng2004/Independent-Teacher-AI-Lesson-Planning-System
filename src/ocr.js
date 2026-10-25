@@ -13,6 +13,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { pageCount as pdfPageCount, renderPages as pdfRenderPages } from './pdfrender.js';
+import { ocrVisionClient } from './visionclient.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COURSES = path.join(ROOT, 'courses');
@@ -146,9 +147,16 @@ async function ocrVision({ pdf, from, to, llm, onProgress }) {
 export async function resolveBackend(llm) {
   const want = (process.env.OCR_BACKEND || 'auto').toLowerCase();
   if (want === 'local' || want === 'vision') return want;
+  // auto：有独立视觉模型就用它（比本机 OCR 准，尤其公式/表格），否则退回本机
+  if (ocrVisionClient()?.supportsVision) return 'vision';
   if (await localAvailable()) return 'local';
   if (llm?.supportsVision) return 'vision';
   return null;
+}
+
+/** OCR 实际使用的客户端：独立视觉模型优先，否则用主模型。 */
+export function ocrClient(mainLLM) {
+  return ocrVisionClient() || mainLLM;
 }
 
 /**
@@ -164,6 +172,7 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
 
   const { from, to } = parsePages(pages, total);
   const backend = await resolveBackend(llm);
+  const client = ocrClient(llm);
   if (!backend) {
     throw new Error(
       '没有可用的 OCR 方式：macOS 需要 Xcode 命令行工具（xcode-select --install），' +
@@ -174,7 +183,7 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
   const body =
     backend === 'local'
       ? await ocrLocal({ pdf, from, to, onProgress })
-      : await ocrVision({ pdf, from, to, llm, onProgress });
+      : await ocrVision({ pdf, from, to, llm: client, onProgress });
 
   const out = pdf.replace(/\.pdf$/i, '') + '.ocr.md';
   const prev = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';

@@ -23,11 +23,16 @@
 
 ```bash
 OCR_BACKEND=vision
-LLM_PROVIDER=openai
-OPENAI_BASE_URL=<厂商地址>
-OPENAI_API_KEY=<key>
-OPENAI_MODEL=<支持图片输入的模型>
+
+# 视觉模型单独配，不影响聊天用的模型
+OCR_BASE_URL=<厂商地址>
+OCR_API_KEY=<key>
+OCR_MODEL=<支持图片输入的模型>
 ```
+
+> 为什么单独配：聊天用 DeepSeek（便宜、长文好），而 DeepSeek 没有视觉能力。
+> 如果共用一套配置，开 OCR 就得把聊天也换成 VL 模型——又贵又不擅长长文。
+> 三个 `OCR_*` 都填了才生效；不填就退回本机 OCR。
 
 常见组合（价格随时变，以官网为准）：
 

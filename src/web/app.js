@@ -1378,6 +1378,15 @@ function renderSettings() {
   c1.appendChild(el('h2', '', '模型'));
   c1.appendChild(el('div', '', `当前：${state.provider}${state.model ? ' · ' + state.model : ''}`));
   c1.appendChild(el('p', 'muted small', '厂商与模型来自 .env（LLM_PROVIDER / OPENAI_*），改完重启服务生效。'));
+  if (state.ocr) {
+    const ocrBox = el('div', 'row');
+    ocrBox.style.marginTop = '10px';
+    const label = { local: '本机 OCR', vision: '视觉模型', null: '不可用' }[state.ocr.backend] || state.ocr.backend;
+    ocrBox.appendChild(el('span', `badge ${state.ocr.backend === 'vision' ? 'ok' : ''}`, `OCR：${label}`));
+    if (state.ocr.visionModel) ocrBox.appendChild(el('span', 'muted small', `${state.ocr.visionModel}${state.ocr.visionBase ? ' @ ' + state.ocr.visionBase : ''}`));
+    c1.appendChild(ocrBox);
+    c1.appendChild(el('p', 'muted small', '扫描版 PDF 的取字方式。想用视觉模型：在 .env 填 OCR_BASE_URL / OCR_API_KEY / OCR_MODEL（和聊天模型分开）。'));
+  }
   m.appendChild(c1);
 
   const c2 = el('div', 'card');

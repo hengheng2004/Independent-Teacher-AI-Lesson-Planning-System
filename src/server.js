@@ -353,10 +353,16 @@ async function handleTeacher(req, res, url, p) {
         reviews: listReviews(c.id).slice(0, 3),
         status: courseStatus(c),
       }));
+      const { resolveBackend } = await import('./ocr.js');
       return json(res, 200, {
         courses,
         provider: llm.provider,
         model: llm.model || 'mock',
+        ocr: {
+          backend: await resolveBackend(llm),
+          visionModel: process.env.OCR_MODEL || (llm.supportsVision ? llm.model : null),
+          visionBase: process.env.OCR_BASE_URL ? new URL(process.env.OCR_BASE_URL).hostname : null,
+        },
         adminUrl: `/teacher`,
         summary: store.summary(7),
       });

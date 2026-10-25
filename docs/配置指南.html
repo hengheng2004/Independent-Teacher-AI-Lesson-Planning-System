@@ -150,7 +150,10 @@ npm run demo                 # 起服务</code></pre>
 <tr><td><code>PORT</code></td><td><code>8787</code></td><td>服务端口</td></tr>
 <tr><td><code>ADMIN_TOKEN</code></td><td>空</td><td>教师令牌；留空则自动生成到 <code>data/admin-token.txt</code></td></tr>
 <tr><td><code>RATE_LIMIT_PER_HOUR</code></td><td><code>10</code></td><td>每小时防连刷默认值（可被课程/学生覆盖）</td></tr>
-<tr><td><code>OCR_BACKEND</code></td><td><code>auto</code></td><td>扫描版 PDF 取字方式：<code>local</code> 本机 OCR / <code>vision</code> 多模态模型</td></tr>
+<tr><td><code>OCR_BACKEND</code></td><td><code>auto</code></td><td>扫描版 PDF 取字方式：<code>local</code> 本机 / <code>vision</code> 视觉模型</td></tr>
+<tr><td><code>OCR_BASE_URL</code></td><td>空</td><td>视觉模型端点（OpenAI 兼容），与聊天模型分开配</td></tr>
+<tr><td><code>OCR_API_KEY</code></td><td>空</td><td>视觉模型的 key</td></tr>
+<tr><td><code>OCR_MODEL</code></td><td>空</td><td>视觉模型名，如 <code>qwen-vl-max</code></td></tr>
 </tbody></table></div>
 <p><strong>换厂商只改三行</strong>，不用动代码：</p>
 <pre class="code lang-bash"><code>LLM_PROVIDER=openai
