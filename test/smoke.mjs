@@ -546,4 +546,10 @@ const hy = await smart('linear-algebra-demo', '线性无关', { k: 3 });
 ok('备课混合检索可用', () => hy.mode === 'hybrid' || hy.mode === 'lexical');
 ok('混合检索有结果', () => hy.blocks.length > 0);
 
+console.log('\n[21] 知识包加载不会读错文件');
+const { loadPacks: lp } = await import('../src/pack.js');
+const packsNow = lp('linear-algebra-demo');
+ok('每章都有 blocks 数组', () => packsNow.every((p) => Array.isArray(p.blocks)));
+ok('不会把 material-vectors.json 当成包', () => packsNow.every((p) => typeof p.chapterKey === 'string'));
+
 console.log(`\n全部通过：${pass} 项。\n`);

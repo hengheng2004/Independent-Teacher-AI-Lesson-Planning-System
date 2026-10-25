@@ -346,6 +346,7 @@ export function loadPacks(courseId) {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith('.json') && f !== 'vectors.json')
+    // 只认章节包：排除向量索引（vectors.json / material-vectors.json）等非知识包文件
+    .filter((f) => f.endsWith('.json') && f !== 'vectors.json' && !f.endsWith('-vectors.json'))
     .map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
 }
