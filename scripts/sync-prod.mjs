@@ -37,8 +37,8 @@ try {
   console.log('正式环境重启失败，手动执行：launchctl kickstart -k gui/$(id -u)/com.teacher.ai');
 }
 
-// 重启演示实例（8799）
-try {
+// 重启演示实例（8799）—— 默认不启：示例用完就停，且 8799 被 HTTP 测试占用
+if (process.env.SYNC_DEMO === '1') try {
   execSync("pkill -f 'PORT=8799' || true", { stdio: 'ignore' });
   execSync(`lsof -ti :8799 | xargs -r kill || true`, { stdio: 'ignore' });
   execSync(`cd "${SRC}" && (PORT=8799 node src/server.js > /tmp/demo.log 2>&1 &)`, { stdio: 'ignore' });
