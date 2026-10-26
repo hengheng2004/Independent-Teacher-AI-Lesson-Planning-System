@@ -14,7 +14,12 @@
 >
 > 改完 Markdown 运行 `npm run docs` 重新生成 HTML。
 >
-> **对外介绍**看 [产品功能宣传页](docs/promo/产品功能宣传.html)（含演示视频与 14 张界面截图，单文件可直接打开）。
+> **对外介绍**看 [产品功能宣传页](docs/promo/产品功能宣传.html)（含演示视频与 14 张界面截图）。
+> 注意：GitHub 不渲染 HTML，直接点开只会显示源码。想看到页面效果，用下面三种方式之一：
+>
+> 1. 本地双击 `docs/promo/产品功能宣传.html`
+> 2. 开 GitHub Pages 后访问：`https://<用户名>.github.io/<仓库名>/promo/`
+> 3. 用 `htmlpreview.github.io/?<文件链接>`
 
 ## 界面
 
