@@ -67,6 +67,7 @@ async function boot() {
     state.model = s.model;
     state.ocr = s.ocr;
     state.prep = s.prep;
+    state.isLocal = s.isLocal;
     state.codeVersion = s.codeVersion;
     state.summary = s.summary;
     $('#login').classList.add('hide');
@@ -379,9 +380,23 @@ async function renderCourse(id) {
   head.appendChild(el('h1', '', c.name));
   head.appendChild(el('span', `badge ${tree.status.key}`, tree.status.label));
   head.appendChild(el('span', 'spacer'));
-  const folderBtn = el('button', '', '打开文件夹');
-  folderBtn.title = '在 Finder 里打开课程目录（仅本机有效）';
-  folderBtn.onclick = async () => {
+  const folderBtn = el('button', '', state.isLocal ? '打开文件夹' : '下载讲义');
+  folderBtn.title = state.isLocal ? '在 Finder 里打开课程目录' : '远程访问时改为下载讲义';
+  if (!state.isLocal) {
+    folderBtn.onclick = () => {
+      const note = (tree.notes || [])[0];
+      if (!note) return toast('这门课还没有生成讲义');
+      const u = `/api/teacher/file?course=${id}&rel=${encodeURIComponent(note.rel)}&download=1`;
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = note.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('已开始下载 ' + note.name);
+    };
+  }
+  if (state.isLocal) folderBtn.onclick = async () => {
     try {
       const r = await api('/api/teacher/reveal', { method: 'POST', body: JSON.stringify({ courseId: id }) });
       toast(r.ok ? '已在 Finder 中打开' : r.error || '打不开');
@@ -809,9 +824,26 @@ async function renderPrep(id, chapterKey) {
   agentSel.innerHTML = '<option value="prep">备课 agent</option><option value="review">审查 agent</option>';
   agentSel.onchange = () => (state.agent = agentSel.value);
   head.appendChild(agentSel);
-  const openFolderBtn = el('button', 'small', '打开文件夹');
-  openFolderBtn.title = '在 Finder 里打开本章的备课产物目录（仅本机有效）';
-  openFolderBtn.onclick = async () => {
+  const openFolderBtn = el('button', 'small', state.isLocal ? '打开文件夹' : '下载讲义');
+  openFolderBtn.title = state.isLocal
+    ? '在 Finder 里打开本章的备课产物目录'
+    : '从别的设备访问时，浏览器打不开那台设备的文件夹；改为把讲义下载下来';
+  if (!state.isLocal) {
+    openFolderBtn.onclick = () => {
+      const note = tree.notes.filter((n) => n.chapter === chapter || n.rel.includes(chapter));
+      const pick = note[0];
+      if (!pick) return toast('本章还没有生成讲义');
+      const u = `/api/teacher/file?course=${id}&rel=${encodeURIComponent(pick.rel)}&download=1`;
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = pick.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast('已开始下载 ' + pick.name);
+    };
+  }
+  if (state.isLocal) openFolderBtn.onclick = async () => {
     const rel = `备课/${chapter}`;
     try {
       const r = await api('/api/teacher/reveal', {

@@ -146,6 +146,16 @@ const clampTokens = (n) => {
 // 推理型模型会先消耗预算思考，实际能写正文的量约为一半
 const isReasoningModel = (name) => /reason|flash|r1|thinking|qwq|o1|o3/i.test(String(name || ''));
 
+// 请求是否来自本机：只有本机访问时，「在文件夹中打开」才是「在用户自己的电脑上」
+const isLocalReq = (req) => {
+  // 经隧道/反代进来时，服务看到的对端仍是 127.0.0.1（cloudflared 在本机转发），
+  // 所以必须看转发头：带了转发头就说明请求来自外部。
+  const fwd = req.headers['x-forwarded-for'] || req.headers['cf-connecting-ip'] || req.headers['x-real-ip'];
+  if (fwd && String(fwd).trim() && String(fwd).trim() !== '127.0.0.1') return false;
+  const ip = req.socket.remoteAddress || '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+};
+
 const safeHost = (u) => {
   try {
     return new URL(u).hostname;
@@ -393,6 +403,7 @@ async function handleTeacher(req, res, url, p) {
         provider: llm.provider,
         model: llm.model || 'mock',
         codeVersion: CODE_VERSION,
+        isLocal: isLocalReq(req),
         prep: {
           maxTokens: Number(process.env.PREP_MAX_TOKENS) || 32000,
           model: llm.model,
@@ -560,7 +571,18 @@ async function handleTeacher(req, res, url, p) {
       const courseId = url.searchParams.get('course');
       const rel = url.searchParams.get('rel');
       if (!getCourse(courseId)) return json(res, 404, { error: '课程不存在' });
-      return json(res, 200, readCourseFile(courseId, rel));
+      const f = readCourseFile(courseId, rel);
+      if (url.searchParams.get('download') === '1') {
+        // 远程访问时用它把讲义存到本地（浏览器唯一能做的「打开本机文件」）
+        const name = String(rel).split('/').pop() || 'file.md';
+        res.writeHead(200, {
+          'content-type': 'text/markdown; charset=utf-8',
+          'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+          'cache-control': 'no-store',
+        });
+        return res.end(f.content);
+      }
+      return json(res, 200, f);
     }
 
     // ---- 文件树（材料 + 备课产物 + 质检） ----
@@ -632,6 +654,13 @@ async function handleTeacher(req, res, url, p) {
     if (p === '/api/teacher/reveal' && method === 'POST') {
       const b = await body();
       if (!getCourse(b.courseId)) return json(res, 404, { error: '课程不存在' });
+      if (!isLocalReq(req)) {
+        return json(res, 200, {
+          ok: false,
+          remote: true,
+          error: '你现在是从别的设备访问，浏览器不允许网页打开那台设备的文件夹；请用「下载」把讲义存到本地。',
+        });
+      }
       if (process.platform !== 'darwin') {
         return json(res, 200, { ok: false, error: '「在文件夹中打开」只在 macOS 本机可用' });
       }
