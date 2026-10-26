@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>独立教师 AI 工作台</title>
+<style>
+  :root{--ink:#172033;--muted:#65718a;--blue:#3567f0;--line:#e6ebf4;--bg:#f7f9fd}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:72px 24px 96px}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.18em;color:var(--blue);
+       background:#eaf0ff;border-radius:999px;padding:6px 14px;font-weight:600}
+  h1{font-size:44px;line-height:1.2;margin:22px 0 14px;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:var(--blue)}
+  .lead{font-size:18px;color:var(--muted);margin:0 0 40px;max-width:640px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+  a.card{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;
+         padding:22px 24px;text-decoration:none;color:inherit;transition:.18s}
+  a.card:hover{border-color:#c9d6f5;box-shadow:0 6px 24px rgba(53,103,240,.10);transform:translateY(-2px)}
+  a.card h2{font-size:17px;margin:0 0 8px}
+  a.card p{margin:0;color:var(--muted);font-size:14px}
+  a.card .go{display:inline-block;margin-top:14px;color:var(--blue);font-size:14px;font-weight:600}
+  footer{margin-top:48px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:20px}
+  footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="tag">INDEPENDENT TEACHER AI</span>
+  <h1>把教师自己的<br><em>课程体系</em>，变成 AI。</h1>
+  <p class="lead">一门课一个助教：只讲你的讲义，每句带出处；备课、送审、学情在同一个工作台里完成。</p>
+
+  <div class="cards">
+    <a class="card" href="promo/">
+      <h2>产品介绍</h2>
+      <p>演示视频与 14 张界面截图，完整走一遍工作流。</p>
+      <span class="go">查看 →</span>
+    </a>
+    <a class="card" href="配置指南.html">
+      <h2>配置与使用指南</h2>
+      <p>安装、模型配置、四种 OCR、网络与部署、故障排查。</p>
+      <span class="go">阅读 →</span>
+    </a>
+    <a class="card" href="https://github.com/hengheng2004/Independent-Teacher-AI-Lesson-Planning-System">
+      <h2>源码仓库</h2>
+      <p>README 讲设计取舍，docs/ 里有架构与使用手册。</p>
+      <span class="go">GitHub →</span>
+    </a>
+  </div>
+
+  <footer>
+    单机运行，数据留在自己的电脑上；除模型 API 外不外发。
+    · <a href="https://github.com/hengheng2004/Independent-Teacher-AI-Lesson-Planning-System/blob/main/LICENSE">MIT License</a>
+  </footer>
+</div>
+</body>
+</html>
