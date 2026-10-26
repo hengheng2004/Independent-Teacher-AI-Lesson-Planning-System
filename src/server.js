@@ -292,6 +292,37 @@ const serveVendor = (res, urlPath) => {
   fs.createReadStream(file).pipe(res);
 };
 
+const DOCS_DIR = path.join(SERVICE_DIR, 'docs');
+const MIME_DOCS = {
+  ...MIME,
+  '.html': 'text/html; charset=utf-8',
+  '.md': 'text/plain; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf',
+};
+
+/**
+ * 对外展示用的静态页（产品介绍、配置指南）。
+ * 不需要登录：这些是要发给别人看的页面。
+ */
+const serveDocs = (res, urlPath) => {
+  let rel = decodeURIComponent(urlPath.slice('/docs/'.length));
+  if (!rel || rel.endsWith('/')) rel += 'index.html';
+  const file = path.resolve(DOCS_DIR, rel);
+  if (!file.startsWith(DOCS_DIR + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    return json(res, 404, { error: 'not found' });
+  }
+  res.writeHead(200, {
+    'content-type': MIME_DOCS[path.extname(file).toLowerCase()] || 'application/octet-stream',
+    'cache-control': 'public, max-age=300',
+  });
+  fs.createReadStream(file).pipe(res);
+};
+
 const serveFile = (res, file, type) => {
   if (!fs.existsSync(file)) return json(res, 404, { error: 'not found' });
   res.writeHead(200, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-cache' });
@@ -881,6 +912,9 @@ const server = http.createServer(async (req, res) => {
   try {
     if (p === '/' || p === '/index.html') return serveFile(res, path.join(WEB_DIR, 'index.html'), 'text/html');
     if (p.startsWith('/vendor/')) return serveVendor(res, p);
+    // 产品介绍与配置指南：公开页面，方便直接发链接给别人
+    if (p === '/docs') { res.writeHead(302, { location: '/docs/' }); return res.end(); }
+    if (p.startsWith('/docs/')) return serveDocs(res, p);
     if (p === '/app.js') return serveFile(res, path.join(WEB_DIR, 'app.js'), 'text/javascript');
     if (p === '/md.js') return serveFile(res, path.join(WEB_DIR, 'md.js'), 'text/javascript');
     if (p === '/app.css') return serveFile(res, path.join(WEB_DIR, 'app.css'), 'text/css');

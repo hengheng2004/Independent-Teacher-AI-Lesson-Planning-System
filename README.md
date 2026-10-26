@@ -20,6 +20,7 @@
 > 1. 本地双击 `docs/promo/产品功能宣传.html`
 > 2. 开 GitHub Pages 后访问：`https://<用户名>.github.io/<仓库名>/promo/`
 > 3. 用 `htmlpreview.github.io/?<文件链接>`
+> 4. 或直接由本服务托管（不需要任何外部平台）：启动后访问 `http://127.0.0.1:8787/docs/promo/`
 
 ## 界面
 
