@@ -68,6 +68,7 @@ async function boot() {
     state.ocr = s.ocr;
     state.prep = s.prep;
     state.isLocal = s.isLocal;
+    state.network = s.network;
     state.codeVersion = s.codeVersion;
     state.summary = s.summary;
     $('#login').classList.add('hide');
@@ -1785,6 +1786,34 @@ async function renderSettings() {
   saveRow.appendChild(msg);
   form.appendChild(saveRow);
   m.appendChild(form);
+
+  // ---- 网络（只读）----
+  const net = state.network || {};
+  const card = el('div', 'card');
+  card.appendChild(el('h2', '', '网络'));
+  const kv = (k, v) => {
+    const row = el('div', 'row');
+    row.style.marginBottom = '6px';
+    const lab = el('span', 'muted small');
+    lab.style.minWidth = '96px';
+    lab.textContent = k;
+    const val = el('span', 'small');
+    val.innerHTML = v;
+    row.appendChild(lab);
+    row.appendChild(val);
+    card.appendChild(row);
+  };
+  const host = net.host || '127.0.0.1';
+  kv('监听', `<code>${host}:${net.port || 8787}</code>`);
+  kv('本机访问', `<a href="http://127.0.0.1:${net.port || 8787}/teacher" target="_blank">http://127.0.0.1:${net.port || 8787}/teacher</a>`);
+  if (host === '0.0.0.0') {
+    kv('局域网', (net.lan || []).map((ip) => `<a href="http://${ip}:${net.port || 8787}/" target="_blank">${ip}</a>`).join('，') || '（没检测到局域网地址）');
+  } else {
+    kv('局域网', '<span class="muted">当前只听本机。要给局域网用，在 .env 里设 HOST=0.0.0.0 后重启</span>');
+  }
+  kv('外网', '<span class="muted">应用内不配。用 Cloudflare 隧道或 VPS 反代，见《配置指南》第四章</span>');
+  kv('学生入口', `<code>http://&lt;你的地址&gt;:${net.port || 8787}/</code> · 凭访问码进入`);
+  m.appendChild(card);
 
   if (state.codeVersion) {
     const ver = el('p', 'muted small');

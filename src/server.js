@@ -1,6 +1,7 @@
 // 学生自助答疑服务：一人一码、按课程检索讲义、回答必须带出处、按人计额度、全程留痕。
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -404,6 +405,15 @@ async function handleTeacher(req, res, url, p) {
         model: llm.model || 'mock',
         codeVersion: CODE_VERSION,
         isLocal: isLocalReq(req),
+        network: {
+          port: PORT,
+          host: process.env.HOST || '127.0.0.1',
+          // 只听本机时没有局域网地址可给；开了 0.0.0.0 才列出来
+          lan: Object.values(os.networkInterfaces())
+            .flat()
+            .filter((n) => n && n.family === 'IPv4' && !n.internal)
+            .map((n) => n.address),
+        },
         prep: {
           maxTokens: Number(process.env.PREP_MAX_TOKENS) || 32000,
           model: llm.model,
