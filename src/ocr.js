@@ -332,5 +332,6 @@ export async function ocrPdf({ courseId, name, pages, llm, onProgress }) {
     `可能有错字，引用前请核对原文。\n`;
   fs.writeFileSync(out, header + sorted.map(([p, t]) => `\n## 第 ${p} 页\n\n${t}\n`).join(''));
 
-  return { out: path.basename(out), pages: to - from + 1, total, backend, from, to };
+  const relOut = path.relative(path.join(COURSES, courseId), out).split(path.sep).join('/');
+  return { out: path.basename(out), rel: relOut, pages: to - from + 1, total, backend, from, to };
 }

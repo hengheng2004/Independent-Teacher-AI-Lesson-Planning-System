@@ -693,7 +693,19 @@ async function runOcr(courseId, name, btn) {
         continue;
       }
       if (job.status === 'done') {
-        toast(`OCR 完成：${job.out}（${job.pages || '?'} 页，方式 ${job.backend || '本机'}）。已可被检索`);
+        const at = job.attached || {};
+        let where;
+        if (at.denied) {
+          where = '命中黑名单，未挂进学生端（题库/教师版这类），教师端仍可检索';
+        } else if (at.changed && at.chapter) {
+          const label = at.via === 'common' ? '通用资料（全课程）' : at.chapter;
+          where = `已挂到 ${label}，学生端可检索`;
+        } else if (at.chapter) {
+          where = `已在 ${at.chapter}，无需重复挂载`;
+        } else {
+          where = '未挂载（课程还没有章节）';
+        }
+        toast(`OCR 完成：${job.out}（${job.pages || '?'} 页，${job.backend || '本机'}）· ${where}`, 6000);
         renderCourse(courseId);
         return;
       }

@@ -562,4 +562,13 @@ const { KIND_SPEC } = await import('../src/answer.js');
 ok('每种意图都有回答策略', () => Object.keys(KIND_SPEC).length >= 5);
 ok('answerQuestion 接受 history 参数', () => answerQuestion.length >= 1);
 
+console.log('\n[23] OCR 校准与材料开放');
+const ocrfix = await import('../src/ocrfix.js');
+ok('fixOcrText 存在', () => typeof ocrfix.fixOcrText === 'function');
+const skipMock = await ocrfix.fixOcrText('## 第 1 页\ntext', { provider: 'mock' });
+ok('mock 模型不校准，原文不动', () => skipMock.skipped === true && skipMock.text === '## 第 1 页\ntext');
+const coursesMod = await import('../src/courses.js');
+ok('attachUnattachedToCommon 存在', () => typeof coursesMod.attachUnattachedToCommon === 'function');
+ok('guessChapter 按章号识别', () => coursesMod.guessChapter('资料/CHAPTER2_a.ocr.md', [{ key: 'c02', title: '第二章' }])?.key === 'c02');
+
 console.log(`\n全部通过：${pass} 项。\n`);

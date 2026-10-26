@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { cleanOcrDocument } from './ocrclean.js';
 
 export const SERVICE_DIR = path.resolve(import.meta.dirname, '..');
 // 本仓库里服务就是根目录：课程在 ./courses，学生在 ./students
@@ -148,18 +149,24 @@ export function buildCoursePacks(course, { log = () => {} } = {}) {
   const included = [];
   const excluded = [];
 
+  const warnings = [];
   for (const chapter of course.chapters || []) {
     const blocks = [];
     const sources = [];
 
     for (const rel of chapter.sources || []) {
       if (isDenied(rel, course.denyGlobs)) {
-        throw new Error(`拒绝构建：${rel} 命中黑名单，学生版知识包不允许收录该文件`);
+        // 命中黑名单只跳过并记一条警告，不要抛错：
+        // 一个文件挂错就让整门课的知识包建不起来，代价太大。
+        warnings.push(`${chapter.key}: 跳过 ${rel}（命中黑名单）`);
+        log(`  ${chapter.key} ⚠ 跳过 ${rel}（命中黑名单）`);
+        continue;
       }
       const abs = path.join(courseDir, rel);
       if (!fs.existsSync(abs)) throw new Error(`缺少讲义文件：${rel}`);
       const buf = fs.readFileSync(abs);
-      const md = buf.toString('utf8');
+      // OCR 出来的文本先规范化（全角转半角、去页眉页码、中文间空格），否则检索对不上
+      const md = /\.ocr\.md$/i.test(rel) ? cleanOcrDocument(buf.toString('utf8')) : buf.toString('utf8');
       const chBlocks = chunkMarkdown(md, chapter.key);
       blocks.push(...chBlocks);
       sources.push({ path: rel, sha256: sha256(buf), blocks: chBlocks.length, kind: 'student_handout' });
@@ -219,7 +226,7 @@ export function buildCoursePacks(course, { log = () => {} } = {}) {
     packs.push(pack);
   }
 
-  return { packs, included, excluded };
+  return { packs, included, excluded, warnings };
 }
 
 /** 文章目录与清单写入课程库，便于人工核对“哪些进了学生端”。 */

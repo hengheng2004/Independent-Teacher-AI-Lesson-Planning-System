@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { COURSE_LIB, WORKSPACE, loadCourseConfig } from './pack.js';
+import { COURSE_LIB, WORKSPACE, isDenied, loadCourseConfig } from './pack.js';
 import { SERVICE_DIR } from './pack.js';
 
 const CONFIG_FILE = path.join(SERVICE_DIR, 'config/courses.json');
@@ -213,23 +213,137 @@ export function saveMaterial(courseId, originalName, buffer) {
  * 把某个文件挂进章节的 sources（已在就别重复加）。
  * 优先挂到引用了同源 PDF 的章节，其次第一个空章，最后第一章。
  */
+/**
+ * 按文件名猜它属于哪一章：CHAPTER1 / ch01 / 第1章 / 01_xxx 都能认。
+ * 返回章节对象，猜不出返回 null。
+ */
+export function guessChapter(fileName, chapters) {
+  const name = String(fileName || '');
+  const base = name.split('/').pop() || name;
+  const nums = [];
+  for (const m of base.matchAll(/(?:chapter|chap|ch|第)\s*0*(\d{1,2})(?:\s*章)?/gi)) nums.push(Number(m[1]));
+  if (!nums.length) {
+    const lead = /^0*(\d{1,2})[\s._-]/.exec(base);
+    if (lead) nums.push(Number(lead[1]));
+  }
+  if (!nums.length) return null;
+
+  const n = nums[0];
+  const chs = chapters || [];
+  const keyHit = chs.find((ch) => new RegExp(`^c(?:h)?0*${n}$`, 'i').test(String(ch.key || '')));
+  if (keyHit) return keyHit;
+  const titleHit = chs.find(
+    (ch) => String(ch.title || '').includes(`第${n}章`) || String(ch.title || '').includes(`第 ${n} 章`),
+  );
+  if (titleHit) return titleHit;
+  const titleNum = chs.find((ch) => new RegExp(`^0*${n}([\\s._-]|$)`).test(String(ch.title || '')));
+  if (titleNum) return titleNum;
+  const byIndex = chs[n - 1];
+  if (byIndex && /^c\d+$/i.test(String(byIndex.key || ''))) return byIndex;
+  return null;
+}
+
+export const COMMON_KEY = 'common';
+export const COMMON_TITLE = '通用资料（全课程）';
+
+/**
+ * 自动挂载的目标章节：
+ * - 命中黑名单 → 不挂（返回 denied），避免整个课程构建因为一个文件失败
+ * - 文件名里有章号 → 挂对应章节
+ * - 没有章号（整本教材、题库、总目录这类）→ 挂「通用」章节，任何题目都能检索到
+ */
+export function pickTargetChapter(fileName, chapters, denyGlobs = []) {
+  if (isDenied(fileName, denyGlobs)) return { denied: true, chapter: null };
+  const chs = chapters || [];
+  const guessed = guessChapter(fileName, chs);
+  if (guessed) return { denied: false, chapter: guessed };
+  return { denied: false, chapter: null, common: true };
+}
+
+/**
+ * 把课程里所有「还没挂进任何章节」的可检索材料挂到「通用资料（全课程）」。
+ * 目的：老师的资料默认对学生开放，资料越多答疑越准；不要求老师手动勾选。
+ * 返回 { changed, added }。
+ */
+export function attachUnattachedToCommon(courseId) {
+  const cfg = readConfig();
+  const c = cfg.courses.find((x) => x.id === courseId);
+  if (!c) throw new Error('课程不存在');
+  c.chapters = c.chapters || [];
+
+  const dir = path.join(COURSE_LIB, courseId);
+  if (!fs.existsSync(dir)) return { changed: false, added: [] };
+
+  const inSources = new Set();
+  for (const ch of c.chapters) for (const s of ch.sources || []) inSources.add(s);
+
+  const found = [];
+  const walk = (sub) => {
+    for (const d of fs.readdirSync(path.join(dir, sub), { withFileTypes: true })) {
+      if (d.name.startsWith('.') || d.name === '助教') continue;
+      const rel = sub ? `${sub}/${d.name}` : d.name;
+      if (d.isDirectory()) {
+        walk(rel);
+        continue;
+      }
+      if (!isIndexable(d.name)) continue;
+      if (inSources.has(rel)) continue;
+      if (isDenied(rel, c.denyGlobs || [])) continue;
+      found.push(rel);
+    }
+  };
+  walk('');
+
+  if (!found.length) return { changed: false, added: [] };
+
+  let common = c.chapters.find((ch) => ch.key === COMMON_KEY);
+  if (!common) {
+    common = { key: COMMON_KEY, title: COMMON_TITLE, sources: [] };
+    c.chapters.push(common);
+  }
+  common.sources = [...(common.sources || []), ...found];
+  writeConfig(cfg);
+  return { changed: true, added: found };
+}
+
 export function attachToChapter(courseId, fileName, { nearFile } = {}) {
   const cfg = readConfig();
   const c = cfg.courses.find((x) => x.id === courseId);
   if (!c) throw new Error('课程不存在');
-  const chapters = c.chapters || [];
+  c.chapters = c.chapters || [];
+  const chapters = c.chapters;
+
   const has = (ch) => (ch.sources || []).includes(fileName);
   if (chapters.some(has)) return { changed: false, chapter: chapters.find(has).key };
 
+  // 同一份 PDF 已有伴生文件挂在某章：跟着它走
   const near = nearFile
     ? chapters.find((ch) => (ch.sources || []).some((s) => s.replace(/\.pdf$/i, '') === nearFile.replace(/\.pdf$/i, '')))
     : null;
-  const target = near || chapters.find((ch) => !(ch.sources || []).length) || chapters[0];
-  if (!target) return { changed: false, chapter: null };
+  if (near) {
+    near.sources = [...(near.sources || []), fileName];
+    writeConfig(cfg);
+    return { changed: true, chapter: near.key, via: 'near' };
+  }
+
+  const pick = pickTargetChapter(nearFile || fileName, chapters, c.denyGlobs || []);
+  if (pick.denied) return { changed: false, chapter: null, denied: true };
+
+  let target = pick.chapter;
+  let via = 'guess';
+  if (!target) {
+    // 没有章号：放进「通用」章节（不存在就建一个），全课程通用
+    target = chapters.find((ch) => ch.key === COMMON_KEY);
+    if (!target) {
+      target = { key: COMMON_KEY, title: COMMON_TITLE, sources: [] };
+      chapters.push(target);
+    }
+    via = 'common';
+  }
 
   target.sources = [...(target.sources || []), fileName];
   writeConfig(cfg);
-  return { changed: true, chapter: target.key };
+  return { changed: true, chapter: target.key, via };
 }
 
 export function deleteMaterial(courseId, name) {

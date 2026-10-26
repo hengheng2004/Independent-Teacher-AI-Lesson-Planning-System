@@ -6,29 +6,42 @@ import path from 'node:path';
 import { COURSE_LIB, WORKSPACE, chunkMarkdown, terms } from './pack.js';
 import { EMBED_DIM, EMBED_MODEL, embed } from './embed.js';
 import { isIndexable } from './courses.js';
+import { cleanOcrDocument } from './ocrclean.js';
 
 const MAX_CHARS_PER_BLOCK = 1200;
 const cache = new Map();
 
-/** 收集课程根目录里可读的文字（.md/.txt，以及 PDF 的 .ocr.md 伴生文件）。 */
-function collectFiles(courseId) {
-  const dir = path.join(COURSE_LIB, courseId);
+// 递归时跳过的目录：助教/ 是系统生成的产物，不该反过来当材料喂给模型
+const SKIP_DIRS = new Set(['助教', 'node_modules', '.git', '.obsidian']);
+
+/**
+ * 收集课程里可读的文字（.md/.txt，以及扫描件 OCR 出来的 .ocr.md）。
+ * 递归子目录：资料/、备课/ 里的文件都要能进备课检索，否则教材 OCR 完也用不上。
+ */
+function collectFiles(courseId, sub = '') {
+  const dir = path.join(COURSE_LIB, courseId, sub);
   if (!fs.existsSync(dir)) return [];
   const out = [];
   for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!d.isFile() || d.name.startsWith('.')) continue;
-    if (!isIndexable(d.name)) continue;
+    if (d.name.startsWith('.') || SKIP_DIRS.has(d.name)) continue;
+    const rel = sub ? `${sub}/${d.name}` : d.name;
+    if (d.isDirectory()) {
+      out.push(...collectFiles(courseId, rel));
+      continue;
+    }
+    if (!d.isFile() || !isIndexable(d.name)) continue;
     // 扫描件 OCR 出来的文本单独标记，便于在提示里说明来源
     const isOcr = /\.ocr\.md$/i.test(d.name);
     const abs = path.join(dir, d.name);
     const st = fs.statSync(abs);
-    out.push({ rel: d.name, abs, mtime: st.mtimeMs, isOcr });
+    out.push({ rel, abs, mtime: st.mtimeMs, isOcr });
   }
-  return out;
+  return out.sort((a, b) => a.rel.localeCompare(b.rel));
 }
 
 function blocksOf(file) {
-  const text = fs.readFileSync(file.abs, 'utf8');
+  const raw = fs.readFileSync(file.abs, 'utf8');
+  const text = file.isOcr ? cleanOcrDocument(raw) : raw;
   const chapterKey = file.rel.replace(/[^a-zA-Z0-9]+/g, '-');
   const chunks = chunkMarkdown(text, chapterKey).filter(
     // 丢掉 OCR 文件自带的标题/说明块，避免它们抢占检索结果

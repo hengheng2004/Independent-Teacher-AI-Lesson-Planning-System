@@ -23,6 +23,7 @@ import {
 import { createStudent, deleteStudent, rotateCode } from './students.js';
 import {
   archiveCourse,
+  attachUnattachedToCommon,
   createCourse,
   deleteMaterial,
   getCourse,
@@ -349,6 +350,17 @@ async function rebuildCourse(courseId) {
   const targets = courseId ? cfg.courses.filter((c) => c.id === courseId) : cfg.courses.filter((c) => c.enabled);
   const result = { courses: [], ms: 0, blocks: 0, vectorChapters: 0 };
   for (const course of targets) {
+    // 先把没挂过章节的材料收进「通用资料」，学生端才能检索到教师资料
+    try {
+      const swept = attachUnattachedToCommon(course.id);
+      if (swept.changed) {
+        const fresh = loadCourseConfig().courses.find((x) => x.id === course.id);
+        if (fresh) course = fresh;
+        result.autoAttached = (result.autoAttached || 0) + swept.added.length;
+      }
+    } catch {
+      /* 收拢失败不影响正常重建 */
+    }
     const built = buildCoursePacks(course);
     result.blocks += built.packs.reduce((a, p) => a + p.blocks.length, 0);
     const v = await buildVectorsFor(course.id, { packs: built.packs, onlyStale: true });
@@ -572,11 +584,34 @@ async function handleTeacher(req, res, url, p) {
         },
       })
         .then(async (r) => {
-          // OCR 产物默认只有老师能看到（备课检索按目录扫）。
-          // 要让学生也能检索，必须挂进章节 sources 并重建，否则学生端永远搜不到。
+          // ① 文本模型校准：修掉 OCR 的上下标/希腊字母错字（OCR_FIX=0 可关闭）
+          let fixInfo = null;
+          if (process.env.OCR_FIX !== '0') {
+            try {
+              const rel = r.rel || r.out;
+              const abs = path.join(COURSE_LIB, b.courseId, rel);
+              const job0 = ocrJobs.get(jobId);
+              if (job0) job0.progress = '校准文本…';
+              const raw = fs.readFileSync(abs, 'utf8');
+              const fixed = await fixOcrText(raw, llm, {
+                onProgress: (i, n) => {
+                  const jj = ocrJobs.get(jobId);
+                  if (jj) jj.progress = `校准 ${i}/${n}`;
+                },
+              });
+              if (!fixed.skipped && fixed.changed > 0) {
+                fs.writeFileSync(abs, fixed.text);
+              }
+              fixInfo = { changed: fixed.changed, failed: fixed.failed, skipped: fixed.skipped };
+            } catch (e) {
+              fixInfo = { error: e.message.slice(0, 120) };
+            }
+          }
+
+          // ② 挂进章节：学生端要能检索，必须挂进 sources 并重建
           let attached = null;
           try {
-            attached = attachToChapter(b.courseId, r.out, { nearFile: b.name });
+            attached = attachToChapter(b.courseId, r.rel || r.out, { nearFile: b.name });
             if (attached.changed) await rebuildCourse(b.courseId);
           } catch {
             /* 挂载失败不影响 OCR 结果本身 */
@@ -588,6 +623,7 @@ async function handleTeacher(req, res, url, p) {
             backend: r.backend,
             pages: r.pages,
             attached,
+            fix: fixInfo,
           });
         })
         .catch((e) => {
