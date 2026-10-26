@@ -379,6 +379,18 @@ async function renderCourse(id) {
   head.appendChild(el('h1', '', c.name));
   head.appendChild(el('span', `badge ${tree.status.key}`, tree.status.label));
   head.appendChild(el('span', 'spacer'));
+  const folderBtn = el('button', '', '打开文件夹');
+  folderBtn.title = '在 Finder 里打开课程目录（仅本机有效）';
+  folderBtn.onclick = async () => {
+    try {
+      const r = await api('/api/teacher/reveal', { method: 'POST', body: JSON.stringify({ courseId: id }) });
+      toast(r.ok ? '已在 Finder 中打开' : r.error || '打不开');
+    } catch (e) {
+      toast('打开失败：' + e.message);
+    }
+  };
+  head.appendChild(folderBtn);
+
   const edit = el('button', '', '编辑课程');
   edit.onclick = () => openEditCourse(id, tree);
   head.appendChild(edit);
@@ -797,6 +809,28 @@ async function renderPrep(id, chapterKey) {
   agentSel.innerHTML = '<option value="prep">备课 agent</option><option value="review">审查 agent</option>';
   agentSel.onchange = () => (state.agent = agentSel.value);
   head.appendChild(agentSel);
+  const openFolderBtn = el('button', 'small', '打开文件夹');
+  openFolderBtn.title = '在 Finder 里打开本章的备课产物目录（仅本机有效）';
+  openFolderBtn.onclick = async () => {
+    const rel = `备课/${chapter}`;
+    try {
+      const r = await api('/api/teacher/reveal', {
+        method: 'POST',
+        body: JSON.stringify({ courseId: id, rel }),
+      });
+      if (!r.ok) toast(r.error || '打不开');
+      else toast('已在 Finder 中打开');
+    } catch (e) {
+      // 本章还没产物时，退回到课程根目录
+      try {
+        const r2 = await api('/api/teacher/reveal', { method: 'POST', body: JSON.stringify({ courseId: id }) });
+        toast(r2.ok ? '本章还没有产物，已打开课程文件夹' : r2.error || '打不开');
+      } catch (e2) {
+        toast('打开失败：' + e2.message);
+      }
+    }
+  };
+
   const reviewBtn = el('button', '', '送审');
   reviewBtn.onclick = () => {
     state.agent = 'review';
@@ -808,6 +842,7 @@ async function renderPrep(id, chapterKey) {
     $('#prompt').focus();
   };
   head.appendChild(reviewBtn);
+  head.appendChild(openFolderBtn);
 
   m.appendChild(head);
 

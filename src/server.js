@@ -1,6 +1,7 @@
 // 学生自助答疑服务：一人一码、按课程检索讲义、回答必须带出处、按人计额度、全程留痕。
 import http from 'node:http';
 import fs from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { COURSE_LIB, SERVICE_DIR, isDenied, loadCourseConfig, loadPacks } from './pack.js';
@@ -27,6 +28,7 @@ import {
   listCourses,
   listMaterials,
   readCourseFile,
+  resolveInCourse,
   attachToChapter,
   saveMaterial,
   updateCourse,
@@ -624,6 +626,29 @@ async function handleTeacher(req, res, url, p) {
         });
       }
       return json(res, 200, { sessionId: null, drafts: [] });
+    }
+
+    // ---- 在 Finder 里打开（仅本机可用）----
+    if (p === '/api/teacher/reveal' && method === 'POST') {
+      const b = await body();
+      if (!getCourse(b.courseId)) return json(res, 404, { error: '课程不存在' });
+      if (process.platform !== 'darwin') {
+        return json(res, 200, { ok: false, error: '「在文件夹中打开」只在 macOS 本机可用' });
+      }
+      let target;
+      try {
+        target = b.rel ? resolveInCourse(b.courseId, b.rel) : path.join(COURSE_LIB, b.courseId);
+      } catch (e) {
+        return json(res, 400, { error: e.message });
+      }
+      if (!fs.existsSync(target)) return json(res, 404, { error: `路径不存在：${b.rel || b.courseId}` });
+
+      // dry=1 只回目标路径，便于测试不真的弹 Finder
+      if (b.dry) return json(res, 200, { ok: true, target, dry: true });
+
+      const isDir = fs.statSync(target).isDirectory();
+      spawn('open', isDir ? [target] : ['-R', target], { detached: true, stdio: 'ignore' }).unref();
+      return json(res, 200, { ok: true, target, isDir });
     }
 
     // ---- 质检报告 ----
