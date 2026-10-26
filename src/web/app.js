@@ -1265,8 +1265,28 @@ async function renderStudents() {
           renderStudents();
         },
       ],
+      [
+        '删除',
+        async () => {
+          const ok = confirm(
+            `删除学生「${s.name}」？\n\n` +
+              '· 访问码立即失效，报名关系一并清除\n' +
+              '· 历史问答保留，仍能在「问答」页查到\n' +
+              '· 学生画像目录不删（需要的话自己去 students/ 里删）\n\n' +
+              '这一步不可撤销。',
+          );
+          if (!ok) return;
+          try {
+            await api('/api/admin/students/delete', { method: 'POST', body: JSON.stringify({ name: s.name }) });
+            toast(`已删除「${s.name}」`);
+            renderStudents();
+          } catch (e) {
+            toast('删除失败：' + e.message);
+          }
+        },
+      ],
     ]) {
-      const b = el('button', 'small', label);
+      const b = el('button', label === '删除' ? 'small danger' : 'small', label);
       b.style.marginRight = '6px';
       b.onclick = fn;
       act.appendChild(b);
