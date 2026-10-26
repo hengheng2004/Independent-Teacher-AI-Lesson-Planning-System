@@ -53,6 +53,7 @@ export function chunkMarkdown(md, chapterKey) {
   for (const line of lines) {
     const h1 = /^#\s+(.+)$/.exec(line);
     const h2 = /^##\s+(.+)$/.exec(line);
+    const h3 = /^###\s+(.+)$/.exec(line);
     const ex = /^\*\*\s*例\s*([0-9]+\.[0-9]+-[0-9]+)\s*\*\*/.exec(line);
 
     if (h1) {
@@ -67,6 +68,16 @@ export function chunkMarkdown(md, chapterKey) {
       section = h2[1].trim();
       cur = { unit, section, example: '', lines: [line] };
       continue;
+    }
+    if (h3) {
+      // 三级标题（如「### P-S05-3-1 某题」）也作为切块边界：
+      // 参考答案这类一文多题的文档，题目级切开后才能被逐题检索到。
+      const curLen = cur ? cur.lines.join('\n').trim().length : 0;
+      if (curLen > 600) {
+        flush();
+        cur = { unit, section: `${section} · ${h3[1].trim()}`.replace(/^\s*·\s*/, ''), example: '', lines: [line] };
+        continue;
+      }
     }
     if (ex) {
       flush();
@@ -99,7 +110,7 @@ export function chunkMarkdown(md, chapterKey) {
 
   // 过长的块在空行处再切，避免单块吃掉整个上下文预算
   const expanded = [];
-  const MAX = 5000;
+  const MAX = 2000;
   for (const b of merged) {
     const text = b.lines.join('\n').trim();
     if (text.length <= MAX) {
