@@ -216,3 +216,9 @@ MIT，见 [LICENSE](LICENSE)。
 
 `src/web/vendor/katex/` 是 [KaTeX](https://katex.org/) 0.16.11 的构建产物（MIT License），
 本地托管是为了让公式渲染不依赖 CDN——学生手机在国内访问 jsdelivr 经常失败，那时会退化成原始 LaTeX 文本。
+
+# 制作不易，如果您觉得有帮助，欢迎大家打赏
+丰俭由人，如果各位老板高兴，请作者喝杯咖啡就行！祝大家生活愉快，工作顺利😀
+<img width="828" height="1124" alt="IMG_1690" src="https://github.com/user-attachments/assets/cfac2208-fc87-4b0f-bafe-5cfe73952d8b" />
+<img width="1708" height="2560" alt="IMG_1691" src="https://github.com/user-attachments/assets/1414fc8e-3377-4e4a-9353-d055a8f4b24b" />
+
