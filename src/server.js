@@ -654,13 +654,8 @@ async function handleTeacher(req, res, url, p) {
     if (p === '/api/teacher/reveal' && method === 'POST') {
       const b = await body();
       if (!getCourse(b.courseId)) return json(res, 404, { error: '课程不存在' });
-      if (!isLocalReq(req)) {
-        return json(res, 200, {
-          ok: false,
-          remote: true,
-          error: '你现在是从别的设备访问，浏览器不允许网页打开那台设备的文件夹；请用「下载」把讲义存到本地。',
-        });
-      }
+      // 教师备课就在自己电脑上：这里 open 的正是他自己那台 Mac。
+      // 远程访问（手机/iPad 通过隧道）时也照常打开，只是提示一句「在你的 Mac 上打开了」。
       if (process.platform !== 'darwin') {
         return json(res, 200, { ok: false, error: '「在文件夹中打开」只在 macOS 本机可用' });
       }
@@ -677,7 +672,7 @@ async function handleTeacher(req, res, url, p) {
 
       const isDir = fs.statSync(target).isDirectory();
       spawn('open', isDir ? [target] : ['-R', target], { detached: true, stdio: 'ignore' }).unref();
-      return json(res, 200, { ok: true, target, isDir });
+      return json(res, 200, { ok: true, target, isDir, remote: !isLocalReq(req) });
     }
 
     // ---- 质检报告 ----

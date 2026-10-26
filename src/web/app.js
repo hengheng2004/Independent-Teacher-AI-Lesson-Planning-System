@@ -380,26 +380,12 @@ async function renderCourse(id) {
   head.appendChild(el('h1', '', c.name));
   head.appendChild(el('span', `badge ${tree.status.key}`, tree.status.label));
   head.appendChild(el('span', 'spacer'));
-  const folderBtn = el('button', '', state.isLocal ? '打开文件夹' : '下载讲义');
-  folderBtn.title = state.isLocal ? '在 Finder 里打开课程目录' : '远程访问时改为下载讲义';
-  if (!state.isLocal) {
-    folderBtn.onclick = () => {
-      const note = (tree.notes || [])[0];
-      if (!note) return toast('这门课还没有生成讲义');
-      const u = `/api/teacher/file?course=${id}&rel=${encodeURIComponent(note.rel)}&download=1`;
-      const a = document.createElement('a');
-      a.href = u;
-      a.download = note.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast('已开始下载 ' + note.name);
-    };
-  }
-  if (state.isLocal) folderBtn.onclick = async () => {
+  const folderBtn = el('button', '', '打开文件夹');
+  folderBtn.title = '在 Finder 里打开课程目录（在你的 Mac 上）';
+  folderBtn.onclick = async () => {
     try {
       const r = await api('/api/teacher/reveal', { method: 'POST', body: JSON.stringify({ courseId: id }) });
-      toast(r.ok ? '已在 Finder 中打开' : r.error || '打不开');
+      toast(r.ok ? (r.remote ? '已在你的 Mac 上打开（当前是远程访问）' : '已在 Finder 中打开') : r.error || '打不开');
     } catch (e) {
       toast('打开失败：' + e.message);
     }
@@ -824,25 +810,8 @@ async function renderPrep(id, chapterKey) {
   agentSel.innerHTML = '<option value="prep">备课 agent</option><option value="review">审查 agent</option>';
   agentSel.onchange = () => (state.agent = agentSel.value);
   head.appendChild(agentSel);
-  const openFolderBtn = el('button', 'small', state.isLocal ? '打开文件夹' : '下载讲义');
-  openFolderBtn.title = state.isLocal
-    ? '在 Finder 里打开本章的备课产物目录'
-    : '从别的设备访问时，浏览器打不开那台设备的文件夹；改为把讲义下载下来';
-  if (!state.isLocal) {
-    openFolderBtn.onclick = () => {
-      const note = tree.notes.filter((n) => n.chapter === chapter || n.rel.includes(chapter));
-      const pick = note[0];
-      if (!pick) return toast('本章还没有生成讲义');
-      const u = `/api/teacher/file?course=${id}&rel=${encodeURIComponent(pick.rel)}&download=1`;
-      const a = document.createElement('a');
-      a.href = u;
-      a.download = pick.name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast('已开始下载 ' + pick.name);
-    };
-  }
+  const openFolderBtn = el('button', 'small', '打开文件夹');
+  openFolderBtn.title = '在 Finder 里打开本章的备课产物目录（在你的 Mac 上）';
   if (state.isLocal) openFolderBtn.onclick = async () => {
     const rel = `备课/${chapter}`;
     try {
@@ -851,7 +820,7 @@ async function renderPrep(id, chapterKey) {
         body: JSON.stringify({ courseId: id, rel }),
       });
       if (!r.ok) toast(r.error || '打不开');
-      else toast('已在 Finder 中打开');
+      else toast(r.remote ? '已在你的 Mac 上打开（当前是远程访问）' : '已在 Finder 中打开');
     } catch (e) {
       // 本章还没产物时，退回到课程根目录
       try {
@@ -1035,6 +1004,21 @@ async function showFile(rel, mode) {
     toggle.onclick = () => showFile(rel, view === 'preview' ? 'raw' : 'preview');
     head.appendChild(toggle);
   }
+
+  // 下载到当前访问设备（手机、别人的电脑上也能拿到这份讲义）
+  const dl = el('button', 'small', '下载');
+  dl.title = '把这份文件保存到当前设备';
+  dl.onclick = () => {
+    const a = el('a');
+    a.href = `/api/teacher/file?course=${state.courseId}&rel=${encodeURIComponent(rel)}&download=1`;
+    a.download = rel.split('/').pop();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('已开始下载');
+  };
+  if (!isMd) dl.style.marginLeft = 'auto';
+  head.appendChild(dl);
 
   if (view === 'preview') {
     const md = el('div', 'md-body');
